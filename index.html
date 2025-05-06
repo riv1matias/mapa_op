@@ -1,0 +1,3185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    
+        <script>
+            L_NO_TOUCH = false;
+            L_DISABLE_3D = false;
+        </script>
+    
+    <style>html, body {width: 100%;height: 100%;margin: 0;padding: 0;}</style>
+    <style>#map {position:absolute;top:0;bottom:0;right:0;left:0;}</style>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_ee18b045a96e6ac1092bb945e1db7910 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+        
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/leaflet.markercluster.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/MarkerCluster.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/MarkerCluster.Default.css"/>
+</head>
+<body>
+    
+    
+        <script>
+          console.log("Iniciando script de control...");
+          var map = null;
+          var tempMarker = null;
+          var pendingActions = [];
+          var markerCluster = null;
+          var currentPopup = null;
+          var isClosingPopup = false;
+
+          function waitForMap(callback) {
+            var attempts = 0;
+            var maxAttempts = 100;
+            
+            function tryInit() {
+              attempts++;
+              map = window['map_map_ee18b045a96e6ac1092bb945e1db7910'];
+              if (map) {
+                console.log('Mapa inicializado después de', attempts, 'intentos');
+                map.eachLayer(function(layer) {
+                  if (layer instanceof L.MarkerClusterGroup) {
+                    markerCluster = layer;
+                    console.log('MarkerCluster encontrado:', markerCluster);
+                  }
+                });
+                callback();
+                return;
+              }
+              
+              var mapFound = false;
+              for (var key in window) {
+                if (key.startsWith('map_') && window[key] instanceof L.Map) {
+                  console.log('Mapa encontrado en window con clave:', key);
+                  mapFound = true;
+                  map = window[key];
+                  map.eachLayer(function(layer) {
+                    if (layer instanceof L.MarkerClusterGroup) {
+                      markerCluster = layer;
+                      console.log('MarkerCluster encontrado:', markerCluster);
+                    }
+                  });
+                  callback();
+                  return;
+                }
+              }
+              
+              if (attempts < maxAttempts) {
+                console.log('Intento', attempts, 'de', maxAttempts, '- Mapa no encontrado aún');
+                setTimeout(tryInit, 200);
+              } else {
+                console.error('No se pudo inicializar el mapa después de', maxAttempts, 'intentos');
+                var mapElement = document.querySelector('.leaflet-container');
+                if (mapElement && mapElement._leaflet_map) {
+                  map = mapElement._leaflet_map;
+                  console.log('Mapa encontrado directamente en el DOM');
+                  map.eachLayer(function(layer) {
+                    if (layer instanceof L.MarkerClusterGroup) {
+                      markerCluster = layer;
+                      console.log('MarkerCluster encontrado:', markerCluster);
+                    }
+                  });
+                  callback();
+                } else {
+                  console.error('No se pudo encontrar el mapa ni en window ni en el DOM');
+                }
+              }
+            }
+            
+            tryInit();
+          }
+
+          function processPendingActions() {
+            pendingActions.forEach(function(action) {
+              var lat = action.lat;
+              var lng = action.lng;
+              var popupContent = action.popupContent;
+              
+              console.log('Procesando acción pendiente - Centrando en:', lat, lng);
+              
+              map.setView([lat, lng], 15);
+              
+              if (tempMarker) {
+                map.removeLayer(tempMarker);
+                tempMarker = null;
+              }
+              
+              tempMarker = L.marker([lat, lng]).addTo(map);
+              tempMarker.bindPopup(popupContent).openPopup();
+              currentPopup = tempMarker;
+              
+              console.log('Popup abierto en:', lat, lng);
+            });
+            pendingActions = [];
+          }
+
+          document.addEventListener('DOMContentLoaded', function() {
+            console.log("DOM cargado, inicializando mapa...");
+            waitForMap(function() {
+              processPendingActions();
+            });
+          });
+
+          function toggleLista(){
+            var l = document.getElementById('pending-list'),
+                a = document.getElementById('pending-arrow');
+            if(l.style.display === 'block'){
+              l.style.display = 'none';
+              a.style.transform = 'rotate(0deg)';
+            } else {
+              l.style.display = 'block';
+              a.style.transform = 'rotate(90deg)';
+            }
+          }
+          
+          function toggleNoMapeadasLista(){
+            var l = document.getElementById('no-mapeadas-list'),
+                a = document.getElementById('no-mapeadas-arrow');
+            if(l.style.display === 'block'){
+              l.style.display = 'none';
+              a.style.transform = 'rotate(0deg)';
+            } else {
+              l.style.display = 'block';
+              a.style.transform = 'rotate(90deg)';
+            }
+          }
+          
+          function filtrarLista(){
+            var f = document.getElementById('pending-search').value.toLowerCase();
+            document.querySelectorAll('#pending-list li').forEach(function(li){
+              li.style.display = li.textContent.toLowerCase().includes(f) ? '' : 'none';
+            });
+          }
+          
+          function filtrarNoMapeadasLista(){
+            var f = document.getElementById('no-mapeadas-search').value.toLowerCase();
+            document.querySelectorAll('#no-mapeadas-list li').forEach(function(li){
+              li.style.display = li.textContent.toLowerCase().includes(f) ? '' : 'none';
+            });
+          }
+          
+          function centrarEn(element){
+            var lat = parseFloat(element.getAttribute('data-lat'));
+            var lng = parseFloat(element.getAttribute('data-lng'));
+            var popupContent = element.getAttribute('data-popup');
+            
+            if (!map) {
+              console.log('Mapa no inicializado aún, añadiendo acción a la cola');
+              pendingActions.push({ lat: lat, lng: lng, popupContent: popupContent });
+              return;
+            }
+            
+            console.log('Centrando en:', lat, lng);
+            
+            map.setView([lat, lng], 15);
+            
+            closeCurrentPopup();
+            
+            tempMarker = L.marker([lat, lng]).addTo(map);
+            tempMarker.bindPopup(popupContent).openPopup();
+            currentPopup = tempMarker;
+            
+            console.log('Popup abierto en:', lat, lng);
+            
+            setTimeout(function() {
+              var caso = extractCasoFromPopup();
+              if (caso) {
+                console.log("Caso extraído después de abrir popup desde desplegable:", caso);
+                mostrarFotos(caso);
+              } else {
+                console.log("No se pudo extraer el caso desde el desplegable, cerrando panel de fotos.");
+                cerrarFotos();
+              }
+            }, 300);
+          }
+        </script>
+        
+    
+            <div class="folium-map" id="map_ee18b045a96e6ac1092bb945e1db7910" ></div>
+        
+    
+        <style>
+          #pending-panel{
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 8px;
+            border: 1px solid gray;
+            max-height: 400px;
+            overflow: auto;
+            font: 12px/1.4 Arial;
+            width: 340px;
+            border-radius: 4px;
+          }
+          #pending-header{
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+          }
+          #pending-list{
+            display: none;
+            padding-left: 16px;
+            list-style: none;
+          }
+          #pending-list li{
+            cursor: pointer;
+            margin: 4px 0;
+            padding: 2px;
+          }
+          #pending-list li:hover{
+            background: #eee;
+          }
+          #pending-search{
+            width: 100%;
+            margin: 4px 0;
+            padding: 4px;
+            font-size: 12px;
+          }
+          #pending-arrow{
+            transition: transform .3s;
+          }
+          #no-mapeadas-panel{
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 8px;
+            border: 1px solid red;
+            max-height: 400px;
+            overflow: auto;
+            font: 12px/1.4 Arial;
+            width: 340px;
+            border-radius: 4px;
+          }
+          #no-mapeadas-header{
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+          }
+          #no-mapeadas-list{
+            display: none;
+            padding-left: 16px;
+            list-style: none;
+          }
+          #no-mapeadas-list li{
+            margin: 4px 0;
+            padding: 2px;
+          }
+          #no-mapeadas-list li:hover{
+            background: #eee;
+          }
+          #no-mapeadas-search{
+            width: 100%;
+            margin: 4px 0;
+            padding: 4px;
+            font-size: 12px;
+          }
+          #no-mapeadas-arrow{
+            transition: transform .3s;
+          }
+        </style>
+        <div id="pending-panel">
+          <div id="pending-header" onclick="toggleLista()">
+            <svg id="pending-arrow" width="14" height="14" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M10 17l5-5-5-5v10z"/>
+            </svg> Direcciones Pendientes <span>(65)</span>
+          </div>
+          <input id="pending-search" placeholder="Buscar..." oninput="filtrarLista()">
+          <ul id="pending-list"><li data-lat="-34.544408" data-lng="-58.461039" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;915&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; ARRIBEÑOS 3688&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 13&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 784675684.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 915         &lt;/div&gt;" onclick="centrarEn(this)">ARRIBEÑOS 3688</li>
+<li data-lat="-34.565499" data-lng="-58.459173" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;1068&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; VIDAL 1959&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 13&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 795695862.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Transferir y retirar columna&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 1068         &lt;/div&gt;" onclick="centrarEn(this)">VIDAL 1959</li>
+<li data-lat="-34.588287" data-lng="-58.406882" data-popup="&lt;div style=&#x27;width: 208px; font: 12px Arial;&#x27; data-caso=&quot;1497&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; SANCHEZ DE BUSTAMANTE 2064&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 2&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 784804268.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Equipo de TLC ya traspasado solo Retirar Columna&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 1497         &lt;/div&gt;" onclick="centrarEn(this)">SANCHEZ DE BUSTAMANTE 2064</li>
+<li data-lat="-34.542575" data-lng="-58.455394" data-popup="&lt;div style=&#x27;width: 216px; font: 12px Arial;&#x27; data-caso=&quot;1939&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; SANCHEZ, MIGUEL B. AV. 1050&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 13&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 788825789.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Dos postes rajados y una columna fuera de plomo. Ver fotos o pedirme ubicacion, esta en la puerta de un colegio&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 1939         &lt;/div&gt;" onclick="centrarEn(this)">SANCHEZ, MIGUEL B. AV. 1050</li>
+<li data-lat="-34.584156" data-lng="-58.40589" data-popup="&lt;div style=&#x27;width: 264px; font: 12px Arial;&#x27; data-caso=&quot;2463&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; PACHECO DE MELO, JOSE ANDRES 3066&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 2&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 795698153.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Equipo de TLC ya traspasado solo Retirar Columna&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 2463         &lt;/div&gt;" onclick="centrarEn(this)">PACHECO DE MELO, JOSE ANDRES 3066</li>
+<li data-lat="-34.576359" data-lng="-58.437276" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;2620&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; DORREGO 2398&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 13&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 791764848.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Ver fotos para ubicar la columna&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 2620         &lt;/div&gt;" onclick="centrarEn(this)">DORREGO 2398</li>
+<li data-lat="-34.558361" data-lng="-58.465814" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;2676&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; UGARTE, MANUEL 2832&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 13&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 791898304.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Transferir red y retirar columna&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 2676         &lt;/div&gt;" onclick="centrarEn(this)">UGARTE, MANUEL 2832</li>
+<li data-lat="-34.565514" data-lng="-58.460089" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;2689&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; ECHEVERRIA 2850&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 13&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 791898330.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Ver foto para ubicar no tiene nodo&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 2689         &lt;/div&gt;" onclick="centrarEn(this)">ECHEVERRIA 2850</li>
+<li data-lat="-34.585706" data-lng="-58.453307" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;2779&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; GUEVARA 687&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 15&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 792041586.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Falta traspaso y retiro&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 2779         &lt;/div&gt;" onclick="centrarEn(this)">GUEVARA 687</li>
+<li data-lat="-34.595287" data-lng="-58.498448" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;2805&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; MCAL SOLANO LOPEZ 3110&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 15&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 792101640.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Retirar columna. TLC ya traspaso nodo&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 2805         &lt;/div&gt;" onclick="centrarEn(this)">MCAL SOLANO LOPEZ 3110</li>
+<li data-lat="-34.599935" data-lng="-58.41606" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;3154&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; BRAVO, MARIO 853&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 5&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 795498456.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Sacar la rienda de la plantera&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 3154         &lt;/div&gt;" onclick="centrarEn(this)">BRAVO, MARIO 853</li>
+<li data-lat="-34.590308" data-lng="-58.413803" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;1871&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; Bulnes 1810&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 14&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 796016024.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Equipo de TLC ya traspasado, solo Retirar Columna&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 1871         &lt;/div&gt;" onclick="centrarEn(this)">Bulnes 1810</li>
+<li data-lat="-34.565845" data-lng="-58.491722" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;3299&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; DIAZ COLODRERO 3309&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 12&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 796186684.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Colocar columna para solicitar traspasos&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 3299         &lt;/div&gt;" onclick="centrarEn(this)">DIAZ COLODRERO 3309</li>
+<li data-lat="-34.603983" data-lng="-58.432017" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;3634&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; SARMIENTO 4696&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 5&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 797379007.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Traspasar redes y retirar columna&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 3634         &lt;/div&gt;" onclick="centrarEn(this)">SARMIENTO 4696</li>
+<li data-lat="-34.591481" data-lng="-58.415439" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4022&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; PARAGUAY 3629&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 14&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 799982164.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Colocar columna para solicitar traspasos&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4022         &lt;/div&gt;" onclick="centrarEn(this)">PARAGUAY 3629</li>
+<li data-lat="-34.58305" data-lng="-58.478352" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4399&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; AVALOS 1487&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 15&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 801644860.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4399         &lt;/div&gt;" onclick="centrarEn(this)">AVALOS 1487</li>
+<li data-lat="-34.593883" data-lng="-58.44244" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4423&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; VERA 1081&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 15&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 801734625.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;PICADA&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4423         &lt;/div&gt;" onclick="centrarEn(this)">VERA 1081</li>
+<li data-lat="-34.621032" data-lng="-58.443626" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4426&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; LORA, FELIX 27&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 6&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 801768138.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Traspaso de redes y retiro de columna TLC ya traspaso el nodo&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4426         &lt;/div&gt;" onclick="centrarEn(this)">LORA, FELIX 27</li>
+<li data-lat="-34.565958" data-lng="-58.449125" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5589&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; ARCOS 1520&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 13&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 799540526.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5589         &lt;/div&gt;" onclick="centrarEn(this)">ARCOS 1520</li>
+<li data-lat="-34.561192" data-lng="-58.459962" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4964&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; OLAZABAL 2590&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 13&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 799540552.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4964         &lt;/div&gt;" onclick="centrarEn(this)">OLAZABAL 2590</li>
+<li data-lat="-34.609923" data-lng="-58.397512" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4579&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; PASCO 10&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 3&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 802438793.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;PIcada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4579         &lt;/div&gt;" onclick="centrarEn(this)">PASCO 10</li>
+<li data-lat="-34.543845" data-lng="-58.464172" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4595&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; PAROISSIEN 1806&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 13&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 802747617.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Aplomar&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4595         &lt;/div&gt;" onclick="centrarEn(this)">PAROISSIEN 1806</li>
+<li data-lat="-34.611403" data-lng="-58.424288" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4534&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; GASCON 93&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 5&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 802747622.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Aplomar&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4534         &lt;/div&gt;" onclick="centrarEn(this)">GASCON 93</li>
+<li data-lat="-34.625499" data-lng="-58.440625" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4528&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; BARCO CENTENERA DEL 545&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 5&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 802774521.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4528         &lt;/div&gt;" onclick="centrarEn(this)">BARCO CENTENERA DEL 545</li>
+<li data-lat="-34.579977" data-lng="-58.436969" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4643&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; VOLTAIRE 5867&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 14&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 802774538.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4643         &lt;/div&gt;" onclick="centrarEn(this)">VOLTAIRE 5867</li>
+<li data-lat="-34.576987" data-lng="-58.490766" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4662&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; ALTOLAGUIRRE 2397&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 12&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 802823938.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Inclinada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4662         &lt;/div&gt;" onclick="centrarEn(this)">ALTOLAGUIRRE 2397</li>
+<li data-lat="-34.54959" data-lng="-58.476436" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4686&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; ZAPIOLA 3927&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 12&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 802857161.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Poste podrido&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4686         &lt;/div&gt;" onclick="centrarEn(this)">ZAPIOLA 3927</li>
+<li data-lat="-34.558883" data-lng="-58.455082" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4862&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; ARCOS 2263&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 13&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 802857379.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4862         &lt;/div&gt;" onclick="centrarEn(this)">ARCOS 2263</li>
+<li data-lat="-34.546959" data-lng="-58.483486" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4744&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; SUPERI 4510&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 12&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 802988216.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Poste con base quebrada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4744         &lt;/div&gt;" onclick="centrarEn(this)">SUPERI 4510</li>
+<li data-lat="-34.612262" data-lng="-58.443039" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4768&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; VALLESE, FELIPE 684&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 6&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 802988221.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4768         &lt;/div&gt;" onclick="centrarEn(this)">VALLESE, FELIPE 684</li>
+<li data-lat="-34.587493" data-lng="-58.4158" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4811&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; ALVAREZ, JULIAN 2395&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 14&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 803086849.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Base picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4811         &lt;/div&gt;" onclick="centrarEn(this)">ALVAREZ, JULIAN 2395</li>
+<li data-lat="-34.592089" data-lng="-58.44095" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;3525&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; AGUIRRE 1110&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 15&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 803107677.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 3525         &lt;/div&gt;" onclick="centrarEn(this)">AGUIRRE 1110</li>
+<li data-lat="-34.679704" data-lng="-58.491041" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4915&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; BARCA CABO DE HORNOS 6753&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 8&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 803607875.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Poste&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4915         &lt;/div&gt;" onclick="centrarEn(this)">BARCA CABO DE HORNOS 6753</li>
+<li data-lat="-34.629827" data-lng="-58.474432" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5110&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; CUENCA 158&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 7&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804287943.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5110         &lt;/div&gt;" onclick="centrarEn(this)">CUENCA 158</li>
+<li data-lat="-34.628211" data-lng="-58.426593" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;2485&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; LA PLATA AV. 1095&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 7&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804302893.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Sacar ancla de rienda vieja y cementar vereda&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 2485         &lt;/div&gt;" onclick="centrarEn(this)">LA PLATA AV. 1095</li>
+<li data-lat="-34.629277" data-lng="-58.458015" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;3082&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; CAMACUA 141&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 7&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804309680.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Aplomar&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 3082         &lt;/div&gt;" onclick="centrarEn(this)">CAMACUA 141</li>
+<li data-lat="-34.634983" data-lng="-58.466324" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;3285&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; LAFUENTE 391&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 4&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804309688.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 3285         &lt;/div&gt;" onclick="centrarEn(this)">LAFUENTE 391</li>
+<li data-lat="-34.566015" data-lng="-58.47538" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;3348&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; ESTOMBA 2626&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 12&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804309704.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 3348         &lt;/div&gt;" onclick="centrarEn(this)">ESTOMBA 2626</li>
+<li data-lat="-34.582874" data-lng="-58.48396" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4494&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; BALLIVIAN 2987&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 15&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804309772.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Aplomar&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4494         &lt;/div&gt;" onclick="centrarEn(this)">BALLIVIAN 2987</li>
+<li data-lat="-34.61969" data-lng="-58.439791" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;4572&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; RIVADAVIA AV. 5263&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 6&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804309785.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 4572         &lt;/div&gt;" onclick="centrarEn(this)">RIVADAVIA AV. 5263</li>
+<li data-lat="-34.630001" data-lng="-58.477988" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5127&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; LAMARCA, EMILIO 224&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 10&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804323949.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5127         &lt;/div&gt;" onclick="centrarEn(this)">LAMARCA, EMILIO 224</li>
+<li data-lat="-34.627623" data-lng="-58.4716" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5124&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; BOGOTA 2936&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 7&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804323945.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5124         &lt;/div&gt;" onclick="centrarEn(this)">BOGOTA 2936</li>
+<li data-lat="-34.588936" data-lng="-58.508582" data-popup="&lt;div style=&#x27;width: 208px; font: 12px Arial;&#x27; data-caso=&quot;5138&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; LOPEZ, CARLOS ANTONIO 3326&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 11&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804468459.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;COLUMNA INCLINADA&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5138         &lt;/div&gt;" onclick="centrarEn(this)">LOPEZ, CARLOS ANTONIO 3326</li>
+<li data-lat="-34.589076" data-lng="-58.508809" data-popup="&lt;div style=&#x27;width: 208px; font: 12px Arial;&#x27; data-caso=&quot;5139&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; LOPEZ, CARLOS ANTONIO 3346&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 11&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804468467.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;COLUMNA INCLINADA&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5139         &lt;/div&gt;" onclick="centrarEn(this)">LOPEZ, CARLOS ANTONIO 3346</li>
+<li data-lat="-34.554352" data-lng="-58.478025" data-popup="&lt;div style=&#x27;width: 224px; font: 12px Arial;&#x27; data-caso=&quot;5458&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; LARRALDE, CRISOLOGO AV. 3511&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 12&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804497873.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Aplomar&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5458         &lt;/div&gt;" onclick="centrarEn(this)">LARRALDE, CRISOLOGO AV. 3511</li>
+<li data-lat="-34.567849" data-lng="-58.46161" data-popup="&lt;div style=&#x27;width: 272px; font: 12px Arial;&#x27; data-caso=&quot;5464&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; SUCRE, ANTONIO JOSE DE, MCAL. 3100&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 13&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804497880.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5464         &lt;/div&gt;" onclick="centrarEn(this)">SUCRE, ANTONIO JOSE DE, MCAL. 3100</li>
+<li data-lat="-34.558545" data-lng="-58.471087" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5471&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; QUESADA 3212&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 12&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804497908.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5471         &lt;/div&gt;" onclick="centrarEn(this)">QUESADA 3212</li>
+<li data-lat="-34.623886" data-lng="-58.479563" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5479&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; CONCORDIA 812&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 7&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804497942.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5479         &lt;/div&gt;" onclick="centrarEn(this)">CONCORDIA 812</li>
+<li data-lat="-34.629262" data-lng="-58.471643" data-popup="&lt;div style=&#x27;width: 224px; font: 12px Arial;&#x27; data-caso=&quot;5485&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; FLORES, VENANCIO, GRAL. 2977&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 7&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804497954.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5485         &lt;/div&gt;" onclick="centrarEn(this)">FLORES, VENANCIO, GRAL. 2977</li>
+<li data-lat="-34.627283" data-lng="-58.426804" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5500&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; LA PLATA AV. 1013&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 7&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804568914.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Aplomar&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5500         &lt;/div&gt;" onclick="centrarEn(this)">LA PLATA AV. 1013</li>
+<li data-lat="-34.552844" data-lng="-58.457701" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5507&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; CONGRESO 1927&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 13&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804568921.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5507         &lt;/div&gt;" onclick="centrarEn(this)">CONGRESO 1927</li>
+<li data-lat="-34.611573" data-lng="-58.485232" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5521&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; EL PEREGRINO 3115&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 11&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804569000.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Aplomar Poste&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5521         &lt;/div&gt;" onclick="centrarEn(this)">EL PEREGRINO 3115</li>
+<li data-lat="-34.557192" data-lng="-58.492309" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5600&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; MILLER 3988&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 12&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804732247.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5600         &lt;/div&gt;" onclick="centrarEn(this)">MILLER 3988</li>
+<li data-lat="-34.571063" data-lng="-58.471885" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5601&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; JURAMENTO 3964&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 12&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804732274.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5601         &lt;/div&gt;" onclick="centrarEn(this)">JURAMENTO 3964</li>
+<li data-lat="-34.556576" data-lng="-58.45573" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5590&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; O&#x27;HIGGINS 2441&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 13&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804732275.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5590         &lt;/div&gt;" onclick="centrarEn(this)">O'HIGGINS 2441</li>
+<li data-lat="-34.572424" data-lng="-58.430419" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;-379&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; BAEZ 231&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 106594 - PALERMO&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 804905127.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Desmontar poste&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; -379         &lt;/div&gt;" onclick="centrarEn(this)">BAEZ 231</li>
+<li data-lat="-34.6369" data-lng="-58.463339" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5664&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; REMEDIOS 2675&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 7&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 805507228.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5664         &lt;/div&gt;" onclick="centrarEn(this)">REMEDIOS 2675</li>
+<li data-lat="-34.62917" data-lng="-58.452319" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5668&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; CURAPALIGUE 367&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 7&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 805507231.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5668         &lt;/div&gt;" onclick="centrarEn(this)">CURAPALIGUE 367</li>
+<li data-lat="-34.60001" data-lng="-58.433529" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5699&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; AGUIRRE 218&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 15&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 805507345.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5699         &lt;/div&gt;" onclick="centrarEn(this)">AGUIRRE 218</li>
+<li data-lat="-34.570441" data-lng="-58.471481" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5700&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; ESTOMBA 2119&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 12&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 805507349.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Aplomar&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5700         &lt;/div&gt;" onclick="centrarEn(this)">ESTOMBA 2119</li>
+<li data-lat="-34.588887" data-lng="-58.506061" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5715&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; CUENCA 4690&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 12&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 805579094.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Aplomar poste&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5715         &lt;/div&gt;" onclick="centrarEn(this)">CUENCA 4690</li>
+<li data-lat="-34.57974" data-lng="-58.499967" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5719&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; CABEZON, JOSE LEON 2440&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 12&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 805579157.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5719         &lt;/div&gt;" onclick="centrarEn(this)">CABEZON, JOSE LEON 2440</li>
+<li data-lat="-34.579354" data-lng="-58.499355" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5720&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; CABEZON, JOSE LEON 2398&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 12&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 805579172.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Picada&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5720         &lt;/div&gt;" onclick="centrarEn(this)">CABEZON, JOSE LEON 2398</li>
+<li data-lat="-34.576521" data-lng="-58.49139" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;805579175&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; Altolaguirre 2466&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 12&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 805579175.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Retirar rienda por entrada de vehiculo&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 805579175         &lt;/div&gt;" onclick="centrarEn(this)">Altolaguirre 2466</li>
+<li data-lat="-34.61546" data-lng="-58.486842" data-popup="&lt;div style=&#x27;width: 200px; font: 12px Arial;&#x27; data-caso=&quot;5725&quot;&gt;             &lt;b&gt;Dirección:&lt;/b&gt; LLAVALLOL 1714&lt;br&gt;             &lt;b&gt;Comuna:&lt;/b&gt; 11&lt;br&gt;             &lt;b&gt;OT:&lt;/b&gt; 805579182.0&lt;br&gt;             &lt;b&gt;Observaciones:&lt;/b&gt;&lt;br&gt;Aplomar Poste&lt;br&gt;             &lt;b&gt;Caso:&lt;/b&gt; 5725         &lt;/div&gt;" onclick="centrarEn(this)">LLAVALLOL 1714</li></ul>
+        </div>
+        
+        <div id="no-mapeadas-panel">
+          <div id="no-mapeadas-header" onclick="toggleNoMapeadasLista()">
+            <svg id="no-mapeadas-arrow" width="14" height="14" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M10 17l5-5-5-5v10z"/>
+            </svg> Direcciones No Mapeadas <span>(0)</span>
+          </div>
+          <input id="no-mapeadas-search" placeholder="Buscar..." oninput="filtrarNoMapeadasLista()">
+          <ul id="no-mapeadas-list"></ul>
+        </div>
+        
+
+    <style>
+      #fotos-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 30%;
+        height: 100%;
+        background: white;
+        border-left: 1px solid #ccc;
+        z-index: 1000;
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      #fotos-header {
+        padding: 10px;
+        font: bold 14px Arial;
+        border-bottom: 1px solid #ccc;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      #fotos-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+        font: 12px Arial;
+      }
+      .foto-item {
+        margin-bottom: 10px;
+      }
+      .foto-item img {
+        width: 100%;
+        height: auto;
+        max-height: 200px;
+        object-fit: contain;
+        cursor: pointer;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      #fotos-close {
+        cursor: pointer;
+        font-size: 16px;
+        color: #333;
+      }
+      #fotos-viewer {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        z-index: 2000;
+        display: none;
+        justify-content: center;
+        align-items: center;
+      }
+      #fotos-viewer img {
+        max-width: 90%;
+        max-height: 90%;
+        object-fit: contain;
+      }
+      #fotos-viewer-close {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+      }
+      .leaflet-container {
+        width: 100%;
+        transition: width 0.3s;
+      }
+      .fotos-panel-visible .leaflet-container {
+        width: 70%;
+      }
+    </style>
+    <div id="fotos-panel">
+      <div id="fotos-header">
+        <span>Fotos del Reclamo</span>
+        <span id="fotos-close">✖</span>
+      </div>
+      <div id="fotos-content"></div>
+    </div>
+    <div id="fotos-viewer">
+      <img id="fotos-viewer-img" src="">
+      <span id="fotos-viewer-close">✖</span>
+    </div>
+    
+    <script>
+      console.log("Iniciando script de panel de fotos...");
+    </script>
+    <script>
+      try {
+        var fotosPorCaso = {"915": [], "1068": [], "1497": ["Fotos%20Reclamos%20Proveedores/1497/Captura%20de%20pantalla%202025-05-02%20135130.png"], "1939": ["Fotos%20Reclamos%20Proveedores/1939/Captura%20de%20pantalla%202024-11-25%20074519.png"], "2463": ["Fotos%20Reclamos%20Proveedores/2463/20240429_095202_Graciela%20Provinzano.jpg", "Fotos%20Reclamos%20Proveedores/2463/20240429_095222_Graciela%20Provinzano.jpg"], "2620": ["Fotos%20Reclamos%20Proveedores/2620/20240725_101402_Juan%20Ignacio%20Sanchez%20%281%29.jpg", "Fotos%20Reclamos%20Proveedores/2620/20240725_101407_Juan%20Ignacio%20Sanchez.jpg"], "2676": ["Fotos%20Reclamos%20Proveedores/2676/20240611_140154_Mat%C3%ADas%20Laredo.jpg", "Fotos%20Reclamos%20Proveedores/2676/20240611_140202_Mat%C3%ADas%20Laredo.jpg"], "2689": ["Fotos%20Reclamos%20Proveedores/2689/20240612_094857_Mat%C3%ADas%20Laredo.jpg", "Fotos%20Reclamos%20Proveedores/2689/20240612_094924_Mat%C3%ADas%20Laredo.jpg"], "2779": ["Fotos%20Reclamos%20Proveedores/2779/IMG-20240731-WA0016_Sandra%20Bergara.jpg", "Fotos%20Reclamos%20Proveedores/2779/IMG-20240731-WA0019_Sandra%20Bergara.jpg"], "2805": ["Fotos%20Reclamos%20Proveedores/2805/17228645651516441223163579537654_Claudia%20Fabiana%20Spiv.jpg", "Fotos%20Reclamos%20Proveedores/2805/17228645835002192249605067043331_Claudia%20Fabiana%20Spiv.jpg"], "3154": [], "1871": ["Fotos%20Reclamos%20Proveedores/1871/20240516_144056_Graciela%20Provinzano.jpg", "Fotos%20Reclamos%20Proveedores/1871/20240516_144107_Graciela%20Provinzano.jpg"], "3299": ["Fotos%20Reclamos%20Proveedores/3299/Diaz%20Colodrero%203309%20b.jpeg", "Fotos%20Reclamos%20Proveedores/3299/Diaz%20Colodrero%203309..jpeg"], "3634": ["Fotos%20Reclamos%20Proveedores/3634/sarmiento%204696%201_Federico%20Nahuel%20Lori.jpeg", "Fotos%20Reclamos%20Proveedores/3634/sarmiento%204696%202_Federico%20Nahuel%20Lori.jpeg"], "4022": ["Fotos%20Reclamos%20Proveedores/4022/20241106_122523_Ignacio%20Genoud.jpg", "Fotos%20Reclamos%20Proveedores/4022/20241106_122544_Ignacio%20Genoud.jpg"], "4399": ["Fotos%20Reclamos%20Proveedores/4399/descargar%20%281%29.png", "Fotos%20Reclamos%20Proveedores/4399/descargar.png", "Fotos%20Reclamos%20Proveedores/4399/IMG-20241211-WA0032_Sandra%20Bergara.jpg", "Fotos%20Reclamos%20Proveedores/4399/IMG-20241211-WA0034_Sandra%20Bergara.jpg"], "4423": ["Fotos%20Reclamos%20Proveedores/4423/20241216_102113_Laura%20Lorena%20Brito.jpg", "Fotos%20Reclamos%20Proveedores/4423/20241216_102214_Laura%20Lorena%20Brito.jpg"], "4426": ["Fotos%20Reclamos%20Proveedores/4426/20241216_112756_Alicia%20Propatto%20%281%29.jpg", "Fotos%20Reclamos%20Proveedores/4426/20241216_112843_Alicia%20Propatto%20%281%29.jpg"], "5589": ["Fotos%20Reclamos%20Proveedores/5589/IMG-20250409-WA0209_Martin%20Zanata.jpg", "Fotos%20Reclamos%20Proveedores/5589/IMG-20250409-WA0210_Martin%20Zanata.jpg"], "4964": ["Fotos%20Reclamos%20Proveedores/4964/Captura%20de%20pantalla%202024-11-11%20130732.png"], "4579": ["Fotos%20Reclamos%20Proveedores/4579/20250107_142505_Isabel%20Cortabarria.jpg", "Fotos%20Reclamos%20Proveedores/4579/20250107_142603_Isabel%20Cortabarria.jpg", "Fotos%20Reclamos%20Proveedores/4579/20250107_142627_Isabel%20Cortabarria.jpg"], "4595": ["Fotos%20Reclamos%20Proveedores/4595/descarga%20%2850%29.jpg", "Fotos%20Reclamos%20Proveedores/4595/descarga%20%2851%29.jpg", "Fotos%20Reclamos%20Proveedores/4595/descarga%20%2852%29.jpg"], "4534": ["Fotos%20Reclamos%20Proveedores/4534/descarga%20%2867%29.jpg"], "4528": ["Fotos%20Reclamos%20Proveedores/4528/descarga%20-%202025-01-16T122154.531.jpg", "Fotos%20Reclamos%20Proveedores/4528/descarga%20-%202025-01-16T122215.628.jpg"], "4643": ["Fotos%20Reclamos%20Proveedores/4643/20250113_105049_Luis%20Alfredo%20Cutimbo.jpg", "Fotos%20Reclamos%20Proveedores/4643/20250113_105103_Luis%20Alfredo%20Cutimbo.jpg"], "4662": ["Fotos%20Reclamos%20Proveedores/4662/IMG-20250114-WA0029_Martin%20Zanata.jpg", "Fotos%20Reclamos%20Proveedores/4662/IMG-20250114-WA0030_Martin%20Zanata.jpg"], "4686": ["Fotos%20Reclamos%20Proveedores/4686/ZAPIOLA%203927%20%282%29.jpg", "Fotos%20Reclamos%20Proveedores/4686/ZAPIOLA%203927%20%283%29.jpg"], "4862": ["Fotos%20Reclamos%20Proveedores/4862/IMG-20250204-WA0012_Sandra%20Bergara.jpg", "Fotos%20Reclamos%20Proveedores/4862/IMG-20250204-WA0015_Sandra%20Bergara.jpg"], "4744": ["Fotos%20Reclamos%20Proveedores/4744/IMG-20250127-WA0077_Martin%20Zanata.jpg", "Fotos%20Reclamos%20Proveedores/4744/IMG-20250127-WA0078_Martin%20Zanata.jpg"], "4768": ["Fotos%20Reclamos%20Proveedores/4768/20250123_092403_Maria%20Rosario%20Figuei.jpg", "Fotos%20Reclamos%20Proveedores/4768/20250123_092434_Maria%20Rosario%20Figuei.jpg", "Fotos%20Reclamos%20Proveedores/4768/20250123_092443_Maria%20Rosario%20Figuei.jpg"], "4811": ["Fotos%20Reclamos%20Proveedores/4811/20250130_082954_Juan%20Ignacio%20Sanchez.jpg", "Fotos%20Reclamos%20Proveedores/4811/20250130_083000_Juan%20Ignacio%20Sanchez.jpg"], "3525": ["Fotos%20Reclamos%20Proveedores/3525/1726842235660907724141930844193_Claudia%20Fabiana%20Spiv.jpg", "Fotos%20Reclamos%20Proveedores/3525/17268422458474612599647836458920_Claudia%20Fabiana%20Spiv.jpg", "Fotos%20Reclamos%20Proveedores/3525/AGUIRRE%201110%20%281%29.jpg"], "4915": ["Fotos%20Reclamos%20Proveedores/4915/20250211_103300_Marcelo%20Eduardo%20Pacc.jpg", "Fotos%20Reclamos%20Proveedores/4915/20250211_103321_Marcelo%20Eduardo%20Pacc.jpg"], "5110": ["Fotos%20Reclamos%20Proveedores/5110/17425559712551237246298263857181_Claudia%20Fabiana%20Spiv.jpg", "Fotos%20Reclamos%20Proveedores/5110/17425560560386137666179643534320_Claudia%20Fabiana%20Spiv.jpg"], "2485": [], "3082": ["Fotos%20Reclamos%20Proveedores/3082/camacua%20141%201_Federico%20Nahuel%20Lori.jpeg", "Fotos%20Reclamos%20Proveedores/3082/camacua%20141%202_Federico%20Nahuel%20Lori.jpeg"], "3285": ["Fotos%20Reclamos%20Proveedores/3285/20240905_101802_Maria%20Rosario%20Figuei.jpg", "Fotos%20Reclamos%20Proveedores/3285/20240905_101810_Maria%20Rosario%20Figuei.jpg"], "3348": ["Fotos%20Reclamos%20Proveedores/3348/IMG-20240911-WA0031_Martin%20Zanata.jpg", "Fotos%20Reclamos%20Proveedores/3348/IMG-20240911-WA0035_Martin%20Zanata%20%281%29.jpg"], "4494": ["Fotos%20Reclamos%20Proveedores/4494/20241223_113724_Laura%20Lorena%20Brito.jpg", "Fotos%20Reclamos%20Proveedores/4494/20241223_113747_Laura%20Lorena%20Brito.jpg"], "4572": ["Fotos%20Reclamos%20Proveedores/4572/17362612407401672226284571144468_Claudia%20Fabiana%20Spiv%20%281%29.jpg", "Fotos%20Reclamos%20Proveedores/4572/17362612679585796905811014802112_Claudia%20Fabiana%20Spiv%20%281%29.jpg"], "5127": ["Fotos%20Reclamos%20Proveedores/5127/17429983087259091201402609430502_Claudia%20Fabiana%20Spiv.jpg", "Fotos%20Reclamos%20Proveedores/5127/17429983213358492878261141845652_Claudia%20Fabiana%20Spiv.jpg"], "5124": ["Fotos%20Reclamos%20Proveedores/5124/17429868797193637138018992577969_Claudia%20Fabiana%20Spiv.jpg", "Fotos%20Reclamos%20Proveedores/5124/17429869070631598065690474898658_Claudia%20Fabiana%20Spiv.jpg"], "5138": ["Fotos%20Reclamos%20Proveedores/5138/Foto%20de%20JUAN%20JOSE%20CACERES%20%2875%29.jpg", "Fotos%20Reclamos%20Proveedores/5138/Foto%20de%20JUAN%20JOSE%20CACERES%20%2877%29.jpg"], "5139": ["Fotos%20Reclamos%20Proveedores/5139/Foto%20de%20JUAN%20JOSE%20CACERES%20%2881%29.jpg", "Fotos%20Reclamos%20Proveedores/5139/Foto%20de%20JUAN%20JOSE%20CACERES%20%2884%29.jpg"], "5458": ["Fotos%20Reclamos%20Proveedores/5458/IMG-20250327-WA0138_Martin%20Zanata.jpg", "Fotos%20Reclamos%20Proveedores/5458/IMG-20250327-WA0139_Martin%20Zanata.jpg"], "5464": ["Fotos%20Reclamos%20Proveedores/5464/WhatsApp%20Image%202025-03-30%20at%2012.43.07_Jose%20Alejandro%20Azar.jpeg", "Fotos%20Reclamos%20Proveedores/5464/WhatsApp%20Image%202025-03-30%20at%2012.43.22_Jose%20Alejandro%20Azar.jpeg", "Fotos%20Reclamos%20Proveedores/5464/WhatsApp%20Image%202025-03-30%20at%2012.43.48_Jose%20Alejandro%20Azar.jpeg"], "5471": ["Fotos%20Reclamos%20Proveedores/5471/IMG-20250331-WA0068_Sandra%20Bergara.jpg", "Fotos%20Reclamos%20Proveedores/5471/IMG-20250331-WA0071_Sandra%20Bergara.jpg"], "5479": ["Fotos%20Reclamos%20Proveedores/5479/WhatsApp%20Image%202025-04-01%20at%2016.52.07%20%281%29.jpeg", "Fotos%20Reclamos%20Proveedores/5479/WhatsApp%20Image%202025-04-01%20at%2016.52.07%20%282%29.jpeg", "Fotos%20Reclamos%20Proveedores/5479/WhatsApp%20Image%202025-04-01%20at%2016.52.07.jpeg"], "5485": ["Fotos%20Reclamos%20Proveedores/5485/WhatsApp%20Image%202025-04-03%20at%2011.14.35%20%281%29%20%281%29.jpeg", "Fotos%20Reclamos%20Proveedores/5485/WhatsApp%20Image%202025-04-03%20at%2011.14.35%20%282%29.jpeg", "Fotos%20Reclamos%20Proveedores/5485/WhatsApp%20Image%202025-04-03%20at%2011.14.35%20%283%29.jpeg"], "5500": ["Fotos%20Reclamos%20Proveedores/5500/0cc81162-2f40-4599-9150-fd06d3f84857.jpg", "Fotos%20Reclamos%20Proveedores/5500/3ee47eb6-4809-414a-a588-d8191c1ce11f.jpg"], "5507": ["Fotos%20Reclamos%20Proveedores/5507/20250401_085524_Luis%20Alfredo%20Cutimbo.jpg", "Fotos%20Reclamos%20Proveedores/5507/20250401_085537_Luis%20Alfredo%20Cutimbo.jpg"], "5521": ["Fotos%20Reclamos%20Proveedores/5521/20250407_110427_Pablo%20Andres%20Mendez.jpg", "Fotos%20Reclamos%20Proveedores/5521/20250407_110626_Pablo%20Andres%20Mendez.jpg"], "5600": ["Fotos%20Reclamos%20Proveedores/5600/IMG-20250408-WA0240_Martin%20Zanata.jpg", "Fotos%20Reclamos%20Proveedores/5600/IMG-20250408-WA0241_Martin%20Zanata.jpg"], "5601": ["Fotos%20Reclamos%20Proveedores/5601/IMG-20250408-WA0188_Martin%20Zanata.jpg", "Fotos%20Reclamos%20Proveedores/5601/IMG-20250408-WA0189_Martin%20Zanata.jpg"], "5590": ["Fotos%20Reclamos%20Proveedores/5590/IMG-20250409-WA0230_Martin%20Zanata.jpg", "Fotos%20Reclamos%20Proveedores/5590/IMG-20250409-WA0232_Martin%20Zanata.jpg"], "-379": ["Fotos%20Reclamos%20Proveedores/-379/047785dc-d274-4357-8c96-fd6afcb4ac69.jpg", "Fotos%20Reclamos%20Proveedores/-379/f419a720-7dbc-4b8a-8fab-66596c85670a.jpg"], "5664": ["Fotos%20Reclamos%20Proveedores/5664/remedios%202655%201_Federico%20Nahuel%20Lori.jpeg", "Fotos%20Reclamos%20Proveedores/5664/remedios%202655%202_Federico%20Nahuel%20Lori.jpeg"], "5668": ["Fotos%20Reclamos%20Proveedores/5668/curapaligue%20367%201_Federico%20Nahuel%20Lori.jpeg", "Fotos%20Reclamos%20Proveedores/5668/curapaligue%20367%202_Federico%20Nahuel%20Lori.jpeg"], "5699": ["Fotos%20Reclamos%20Proveedores/5699/WhatsApp%20Image%202025-04-26%20at%2013.57.24_Jose%20Alejandro%20Azar.jpeg", "Fotos%20Reclamos%20Proveedores/5699/WhatsApp%20Image%202025-04-26%20at%2013.57.50_Jose%20Alejandro%20Azar.jpeg"], "5700": ["Fotos%20Reclamos%20Proveedores/5700/IMG-20250423-WA0236_Martin%20Zanata.jpg", "Fotos%20Reclamos%20Proveedores/5700/IMG-20250423-WA0237_Martin%20Zanata.jpg"], "5715": ["Fotos%20Reclamos%20Proveedores/5715/IMG-20250423-WA0230_Martin%20Zanata%20%281%29.jpg", "Fotos%20Reclamos%20Proveedores/5715/IMG-20250423-WA0231_Martin%20Zanata%20%282%29.jpg"], "5719": ["Fotos%20Reclamos%20Proveedores/5719/IMG-20250423-WA0211_Martin%20Zanata.jpg", "Fotos%20Reclamos%20Proveedores/5719/IMG-20250423-WA0212_Martin%20Zanata.jpg", "Fotos%20Reclamos%20Proveedores/5719/IMG-20250423-WA0213_Martin%20Zanata%20%281%29.jpg"], "5720": ["Fotos%20Reclamos%20Proveedores/5720/IMG-20250423-WA0208_Martin%20Zanata%20%281%29.jpg", "Fotos%20Reclamos%20Proveedores/5720/IMG-20250423-WA0209_Martin%20Zanata.jpg", "Fotos%20Reclamos%20Proveedores/5720/IMG-20250423-WA0210_Martin%20Zanata.jpg"], "805579175": ["Fotos%20Reclamos%20Proveedores/805579175/thumbnail_image.png"], "5725": ["Fotos%20Reclamos%20Proveedores/5725/IMG_20250428_093910627_HDR_Lucas%20Nahuel%20Marino.jpg", "Fotos%20Reclamos%20Proveedores/5725/IMG_20250428_093919268_HDR_Lucas%20Nahuel%20Marino.jpg"]};
+        console.log("fotosPorCaso definido:", fotosPorCaso);
+      } catch (e) {
+        console.error("Error al definir fotosPorCaso:", e);
+      }
+    </script>
+    <script>
+      console.log("Continuando con el script de panel de fotos...");
+
+      function mostrarFotos(caso) {
+        console.log("Mostrando fotos para el caso: " + caso);
+        console.log("Fotos disponibles: ", fotosPorCaso[caso]);
+        var fotosPanel = document.getElementById('fotos-panel');
+        var fotosContent = document.getElementById('fotos-content');
+        var body = document.body;
+        
+        var fotos = fotosPorCaso[caso] || [];
+        
+        fotosPanel.style.display = 'flex';
+        body.classList.add('fotos-panel-visible');
+        
+        fotosContent.innerHTML = '';
+        
+        if (fotos.length === 0) {
+          console.log("No hay fotos para este caso.");
+          fotosContent.innerHTML = '<p>No hay fotos</p>';
+        } else {
+          console.log("Generando HTML para las fotos...");
+          fotos.forEach(function(foto) {
+            console.log("Procesando foto:", foto);
+            var fotoHtml = `<div class="foto-item"><img src="${foto}" alt="Foto" onclick="abrirFotoGrande('${foto}')"></div>`;
+            fotosContent.innerHTML += fotoHtml;
+          });
+          console.log("HTML de fotos generado.");
+        }
+      }
+      
+      function cerrarFotos() {
+        var fotosPanel = document.getElementById('fotos-panel');
+        if (fotosPanel.style.display === 'flex') {
+          console.log("Cerrando panel de fotos...");
+          var body = document.body;
+          fotosPanel.style.display = 'none';
+          body.classList.remove('fotos-panel-visible');
+        } else {
+          console.log("Panel de fotos ya está cerrado, no se necesita acción.");
+        }
+      }
+      
+      function abrirFotoGrande(fotoUrl) {
+        console.log("Abriendo foto en grande:", fotoUrl);
+        var viewer = document.getElementById('fotos-viewer');
+        var viewerImg = document.getElementById('fotos-viewer-img');
+        viewerImg.src = fotoUrl;
+        viewer.style.display = 'flex';
+      }
+      
+      function cerrarFotoGrande() {
+        console.log("Cerrando visor de fotos...");
+        var viewer = document.getElementById('fotos-viewer');
+        viewer.style.display = 'none';
+      }
+      
+      console.log("Registrando event listeners...");
+      document.getElementById('fotos-close').addEventListener('click', cerrarFotos);
+      document.getElementById('fotos-viewer-close').addEventListener('click', cerrarFotoGrande);
+      
+      function limpiarPopupsAntiguos() {
+        console.log("Limpiando popups antiguos del DOM...");
+        var popups = document.querySelectorAll('.leaflet-popup');
+        popups.forEach(function(popup) {
+          console.log("Eliminando popup del DOM:", popup);
+          popup.remove();
+        });
+      }
+      
+      function extractCasoFromPopup() {
+        console.log("Buscando elemento con data-caso en el DOM...");
+        var popupElement = document.querySelector('.leaflet-popup:not([style*="display: none"]) .leaflet-popup-content div[data-caso]');
+        if (popupElement) {
+          var caso = popupElement.getAttribute('data-caso');
+          if (caso) {
+            console.log("Caso extraído del DOM:", caso);
+            var popupContent = popupElement.closest('.leaflet-popup-content').innerHTML;
+            console.log("Contenido del popup:", popupContent);
+            return caso;
+          } else {
+            console.log("No se encontró data-caso en el DOM.");
+          }
+        } else {
+          console.log("No se encontró el elemento con data-caso en el DOM.");
+          var allPopups = document.querySelectorAll('.leaflet-popup');
+          allPopups.forEach(function(popup, index) {
+            console.log("Popup", index, "en el DOM:", popup.innerHTML);
+          });
+        }
+        return null;
+      }
+      
+      var isClosingPopup = false;
+      
+      function closeCurrentPopup() {
+        if (isClosingPopup) {
+          console.log("closeCurrentPopup ya está en ejecución, evitando recursión.");
+          return;
+        }
+        isClosingPopup = true;
+        try {
+          if (currentPopup) {
+            console.log("Cerrando popup actual...");
+            map.closePopup();
+            currentPopup = null;
+          }
+          if (tempMarker) {
+            console.log("Eliminando marcador temporal...");
+            map.removeLayer(tempMarker);
+            tempMarker = null;
+          }
+          limpiarPopupsAntiguos();
+          cerrarFotos();
+        } finally {
+          isClosingPopup = false;
+        }
+      }
+      
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log("DOM cargado, esperando mapa...");
+        waitForMap(function() {
+          console.log("Mapa inicializado, registrando eventos...");
+          if (markerCluster) {
+            console.log("Registrando eventos para marcadores dentro de MarkerCluster...");
+            
+            markerCluster.eachLayer(function(marker) {
+              marker.on('click', function(e) {
+                console.log("Clic en marcador del mapa en posición:", e.latlng);
+                
+                closeCurrentPopup();
+                
+                var popupContent = marker.getPopup().getContent();
+                if (typeof popupContent !== 'string') {
+                  popupContent = popupContent.outerHTML;
+                }
+                
+                var latlng = e.latlng;
+                tempMarker = L.marker(latlng).addTo(map);
+                tempMarker.bindPopup(popupContent).openPopup();
+                currentPopup = tempMarker;
+                
+                setTimeout(function() {
+                  var caso = extractCasoFromPopup();
+                  if (caso) {
+                    console.log("Caso extraído después de clic en marcador:", caso);
+                    mostrarFotos(caso);
+                  } else {
+                    console.log("No se pudo extraer el caso, cerrando panel de fotos.");
+                    cerrarFotos();
+                  }
+                }, 300);
+              });
+            });
+          } else {
+            console.log("MarkerCluster no encontrado.");
+          }
+          
+          map.on('popupclose', function() {
+            console.log("Popup cerrado en el mapa.");
+            closeCurrentPopup();
+          });
+        });
+      });
+    </script>
+    </body>
+<script>
+    
+    
+            var map_ee18b045a96e6ac1092bb945e1db7910 = L.map(
+                "map_ee18b045a96e6ac1092bb945e1db7910",
+                {
+                    center: [-34.6037, -58.3816],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 12,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_e66d5f43bc9b84df8f069b0f27da7324 = L.tileLayer(
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_e66d5f43bc9b84df8f069b0f27da7324.addTo(map_ee18b045a96e6ac1092bb945e1db7910);
+        
+    
+            var marker_cluster_a876a9f97d776906d702d301f2a0a6b3 = L.markerClusterGroup(
+                {
+  "spiderfyOnMaxZoom": true,
+  "showCoverageOnHover": true,
+  "zoomToBoundsOnClick": true,
+  "disableClusteringAtZoom": 15,
+}
+            );
+        
+    
+            var marker_671e3bc084fbfca5e57a7bf24522faa1 = L.marker(
+                [-34.544408, -58.461039],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_ad9f4c09d4ca298ad31d36afc1f38ef5 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_1ed85059c48d036fef77369b6b405a16 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_c3678f0d9e3473cfa8e23119c6fd6d94 = $(`<div id="html_c3678f0d9e3473cfa8e23119c6fd6d94" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="915">             <b>Dirección:</b> ARRIBEÑOS 3688<br>             <b>Comuna:</b> 13<br>             <b>OT:</b> 784675684.0<br>             <b>Observaciones:</b><br><br>             <b>Caso:</b> 915         </div>         </div>`)[0];
+                popup_1ed85059c48d036fef77369b6b405a16.setContent(html_c3678f0d9e3473cfa8e23119c6fd6d94);
+            
+        
+
+        marker_671e3bc084fbfca5e57a7bf24522faa1.bindPopup(popup_1ed85059c48d036fef77369b6b405a16)
+        ;
+
+        
+    
+    
+                marker_671e3bc084fbfca5e57a7bf24522faa1.setIcon(icon_ad9f4c09d4ca298ad31d36afc1f38ef5);
+            
+    
+            var marker_ffcf6e0078f8eea6961ebc01bf8c84a5 = L.marker(
+                [-34.565499, -58.459173],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_71cb6b93fcb8c01adb9230771bc42251 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_e67d9aeb1217010d6e8a6eb4648d0bf4 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_e376db54c2868e44bd0366c43a12270a = $(`<div id="html_e376db54c2868e44bd0366c43a12270a" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="1068">             <b>Dirección:</b> VIDAL 1959<br>             <b>Comuna:</b> 13<br>             <b>OT:</b> 795695862.0<br>             <b>Observaciones:</b><br>Transferir y retirar columna<br>             <b>Caso:</b> 1068         </div>         </div>`)[0];
+                popup_e67d9aeb1217010d6e8a6eb4648d0bf4.setContent(html_e376db54c2868e44bd0366c43a12270a);
+            
+        
+
+        marker_ffcf6e0078f8eea6961ebc01bf8c84a5.bindPopup(popup_e67d9aeb1217010d6e8a6eb4648d0bf4)
+        ;
+
+        
+    
+    
+                marker_ffcf6e0078f8eea6961ebc01bf8c84a5.setIcon(icon_71cb6b93fcb8c01adb9230771bc42251);
+            
+    
+            var marker_ea8b4de20f608e78688f8a53b1b161ca = L.marker(
+                [-34.588287, -58.406882],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_b89551c69b3aca106eaf3d1e23f978bb = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_c5ef09df135f97e94be8a53813293d32 = L.popup({
+  "maxWidth": 208,
+});
+
+        
+            
+                var html_132cad6b1c8ec28674352ffe6ff598fc = $(`<div id="html_132cad6b1c8ec28674352ffe6ff598fc" style="width: 100.0%; height: 100.0%;">         <div style='width: 208px; font: 12px Arial;' data-caso="1497">             <b>Dirección:</b> SANCHEZ DE BUSTAMANTE 2064<br>             <b>Comuna:</b> 2<br>             <b>OT:</b> 784804268.0<br>             <b>Observaciones:</b><br>Equipo de TLC ya traspasado solo Retirar Columna<br>             <b>Caso:</b> 1497         </div>         </div>`)[0];
+                popup_c5ef09df135f97e94be8a53813293d32.setContent(html_132cad6b1c8ec28674352ffe6ff598fc);
+            
+        
+
+        marker_ea8b4de20f608e78688f8a53b1b161ca.bindPopup(popup_c5ef09df135f97e94be8a53813293d32)
+        ;
+
+        
+    
+    
+                marker_ea8b4de20f608e78688f8a53b1b161ca.setIcon(icon_b89551c69b3aca106eaf3d1e23f978bb);
+            
+    
+            var marker_fd6e4968345eafcdc53eabc5dc84ce99 = L.marker(
+                [-34.542575, -58.455394],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_8ac55553420b980debeecde0c75853e5 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_fe9936ba46397a984a81a6b5703e83c4 = L.popup({
+  "maxWidth": 216,
+});
+
+        
+            
+                var html_e7629d27aefb0c0e8a094d91086ec48b = $(`<div id="html_e7629d27aefb0c0e8a094d91086ec48b" style="width: 100.0%; height: 100.0%;">         <div style='width: 216px; font: 12px Arial;' data-caso="1939">             <b>Dirección:</b> SANCHEZ, MIGUEL B. AV. 1050<br>             <b>Comuna:</b> 13<br>             <b>OT:</b> 788825789.0<br>             <b>Observaciones:</b><br>Dos postes rajados y una columna fuera de plomo. Ver fotos o pedirme ubicacion, esta en la puerta de un colegio<br>             <b>Caso:</b> 1939         </div>         </div>`)[0];
+                popup_fe9936ba46397a984a81a6b5703e83c4.setContent(html_e7629d27aefb0c0e8a094d91086ec48b);
+            
+        
+
+        marker_fd6e4968345eafcdc53eabc5dc84ce99.bindPopup(popup_fe9936ba46397a984a81a6b5703e83c4)
+        ;
+
+        
+    
+    
+                marker_fd6e4968345eafcdc53eabc5dc84ce99.setIcon(icon_8ac55553420b980debeecde0c75853e5);
+            
+    
+            var marker_d587140c45b8daff9f28b8a2adf7ec2a = L.marker(
+                [-34.584156, -58.40589],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_8bacfd16d8aa33ab813ef3220593cf5b = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_cf47d23887dabb02a04ef072c57da0dc = L.popup({
+  "maxWidth": 264,
+});
+
+        
+            
+                var html_c1122d0489b7fbf3d5cbf8d617785e40 = $(`<div id="html_c1122d0489b7fbf3d5cbf8d617785e40" style="width: 100.0%; height: 100.0%;">         <div style='width: 264px; font: 12px Arial;' data-caso="2463">             <b>Dirección:</b> PACHECO DE MELO, JOSE ANDRES 3066<br>             <b>Comuna:</b> 2<br>             <b>OT:</b> 795698153.0<br>             <b>Observaciones:</b><br>Equipo de TLC ya traspasado solo Retirar Columna<br>             <b>Caso:</b> 2463         </div>         </div>`)[0];
+                popup_cf47d23887dabb02a04ef072c57da0dc.setContent(html_c1122d0489b7fbf3d5cbf8d617785e40);
+            
+        
+
+        marker_d587140c45b8daff9f28b8a2adf7ec2a.bindPopup(popup_cf47d23887dabb02a04ef072c57da0dc)
+        ;
+
+        
+    
+    
+                marker_d587140c45b8daff9f28b8a2adf7ec2a.setIcon(icon_8bacfd16d8aa33ab813ef3220593cf5b);
+            
+    
+            var marker_f133c2b1de3cefcf4fde55d6ccf82566 = L.marker(
+                [-34.576359, -58.437276],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_20e6299b382e17d17a8a647317d2454f = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_06e3cb4025be0812821bc6e2ea9431b3 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_3f99516787e74bb5fc29855b54efa9d3 = $(`<div id="html_3f99516787e74bb5fc29855b54efa9d3" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="2620">             <b>Dirección:</b> DORREGO 2398<br>             <b>Comuna:</b> 13<br>             <b>OT:</b> 791764848.0<br>             <b>Observaciones:</b><br>Ver fotos para ubicar la columna<br>             <b>Caso:</b> 2620         </div>         </div>`)[0];
+                popup_06e3cb4025be0812821bc6e2ea9431b3.setContent(html_3f99516787e74bb5fc29855b54efa9d3);
+            
+        
+
+        marker_f133c2b1de3cefcf4fde55d6ccf82566.bindPopup(popup_06e3cb4025be0812821bc6e2ea9431b3)
+        ;
+
+        
+    
+    
+                marker_f133c2b1de3cefcf4fde55d6ccf82566.setIcon(icon_20e6299b382e17d17a8a647317d2454f);
+            
+    
+            var marker_7538f29e9880347f633ca1a6acce83fb = L.marker(
+                [-34.558361, -58.465814],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_4d4f826c4d56293b3783dde16d338f3b = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_804ef8214d9c833ac6cf0dca3705ae2d = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_c0834c2d7f6eb414924d8ceabdc502b4 = $(`<div id="html_c0834c2d7f6eb414924d8ceabdc502b4" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="2676">             <b>Dirección:</b> UGARTE, MANUEL 2832<br>             <b>Comuna:</b> 13<br>             <b>OT:</b> 791898304.0<br>             <b>Observaciones:</b><br>Transferir red y retirar columna<br>             <b>Caso:</b> 2676         </div>         </div>`)[0];
+                popup_804ef8214d9c833ac6cf0dca3705ae2d.setContent(html_c0834c2d7f6eb414924d8ceabdc502b4);
+            
+        
+
+        marker_7538f29e9880347f633ca1a6acce83fb.bindPopup(popup_804ef8214d9c833ac6cf0dca3705ae2d)
+        ;
+
+        
+    
+    
+                marker_7538f29e9880347f633ca1a6acce83fb.setIcon(icon_4d4f826c4d56293b3783dde16d338f3b);
+            
+    
+            var marker_c20a93eb242c644a4f167d0b3b310de6 = L.marker(
+                [-34.565514, -58.460089],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_fd1b325c215393888c67e36fda51e151 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_7b5b18db3079fcdb09b7e6460004fec9 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_6b9b30c4753cd6b895cf50a23326c679 = $(`<div id="html_6b9b30c4753cd6b895cf50a23326c679" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="2689">             <b>Dirección:</b> ECHEVERRIA 2850<br>             <b>Comuna:</b> 13<br>             <b>OT:</b> 791898330.0<br>             <b>Observaciones:</b><br>Ver foto para ubicar no tiene nodo<br>             <b>Caso:</b> 2689         </div>         </div>`)[0];
+                popup_7b5b18db3079fcdb09b7e6460004fec9.setContent(html_6b9b30c4753cd6b895cf50a23326c679);
+            
+        
+
+        marker_c20a93eb242c644a4f167d0b3b310de6.bindPopup(popup_7b5b18db3079fcdb09b7e6460004fec9)
+        ;
+
+        
+    
+    
+                marker_c20a93eb242c644a4f167d0b3b310de6.setIcon(icon_fd1b325c215393888c67e36fda51e151);
+            
+    
+            var marker_aff01fcf21ef1aa117f714d6ef5b6d59 = L.marker(
+                [-34.585706, -58.453307],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_e8c72079316d4260af536cf9ad4ed5f7 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_e37483c32630e42763b65e6b70f215b6 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_d04b668a3e3bdf43cfeea8a226646c87 = $(`<div id="html_d04b668a3e3bdf43cfeea8a226646c87" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="2779">             <b>Dirección:</b> GUEVARA 687<br>             <b>Comuna:</b> 15<br>             <b>OT:</b> 792041586.0<br>             <b>Observaciones:</b><br>Falta traspaso y retiro<br>             <b>Caso:</b> 2779         </div>         </div>`)[0];
+                popup_e37483c32630e42763b65e6b70f215b6.setContent(html_d04b668a3e3bdf43cfeea8a226646c87);
+            
+        
+
+        marker_aff01fcf21ef1aa117f714d6ef5b6d59.bindPopup(popup_e37483c32630e42763b65e6b70f215b6)
+        ;
+
+        
+    
+    
+                marker_aff01fcf21ef1aa117f714d6ef5b6d59.setIcon(icon_e8c72079316d4260af536cf9ad4ed5f7);
+            
+    
+            var marker_3d15654184d8a2330ee0b052ea749f96 = L.marker(
+                [-34.595287, -58.498448],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_ebef205172e66ba936a71d0cab040361 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_1d48ec1762a2923c12b453d673838022 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_c04d8fb255b34e4f5039a2c32ea3368a = $(`<div id="html_c04d8fb255b34e4f5039a2c32ea3368a" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="2805">             <b>Dirección:</b> MCAL SOLANO LOPEZ 3110<br>             <b>Comuna:</b> 15<br>             <b>OT:</b> 792101640.0<br>             <b>Observaciones:</b><br>Retirar columna. TLC ya traspaso nodo<br>             <b>Caso:</b> 2805         </div>         </div>`)[0];
+                popup_1d48ec1762a2923c12b453d673838022.setContent(html_c04d8fb255b34e4f5039a2c32ea3368a);
+            
+        
+
+        marker_3d15654184d8a2330ee0b052ea749f96.bindPopup(popup_1d48ec1762a2923c12b453d673838022)
+        ;
+
+        
+    
+    
+                marker_3d15654184d8a2330ee0b052ea749f96.setIcon(icon_ebef205172e66ba936a71d0cab040361);
+            
+    
+            var marker_76de5dd4167731c761343fb766db2504 = L.marker(
+                [-34.599935, -58.41606],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_7120793d924907d02112edeca67d892a = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_4776e138f073db46c8aba1076ba88e8b = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_0e5aef806a950abc5b2366f03d2ce58a = $(`<div id="html_0e5aef806a950abc5b2366f03d2ce58a" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="3154">             <b>Dirección:</b> BRAVO, MARIO 853<br>             <b>Comuna:</b> 5<br>             <b>OT:</b> 795498456.0<br>             <b>Observaciones:</b><br>Sacar la rienda de la plantera<br>             <b>Caso:</b> 3154         </div>         </div>`)[0];
+                popup_4776e138f073db46c8aba1076ba88e8b.setContent(html_0e5aef806a950abc5b2366f03d2ce58a);
+            
+        
+
+        marker_76de5dd4167731c761343fb766db2504.bindPopup(popup_4776e138f073db46c8aba1076ba88e8b)
+        ;
+
+        
+    
+    
+                marker_76de5dd4167731c761343fb766db2504.setIcon(icon_7120793d924907d02112edeca67d892a);
+            
+    
+            var marker_dffea64a934e03118a2797a60f6d7506 = L.marker(
+                [-34.590308, -58.413803],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_4585759ad2bc8e74ca1a382192657c3a = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_6d70a8700b4530e7d18e48a117272581 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_93debbff28e314fc761111ce3f1492dd = $(`<div id="html_93debbff28e314fc761111ce3f1492dd" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="1871">             <b>Dirección:</b> Bulnes 1810<br>             <b>Comuna:</b> 14<br>             <b>OT:</b> 796016024.0<br>             <b>Observaciones:</b><br>Equipo de TLC ya traspasado, solo Retirar Columna<br>             <b>Caso:</b> 1871         </div>         </div>`)[0];
+                popup_6d70a8700b4530e7d18e48a117272581.setContent(html_93debbff28e314fc761111ce3f1492dd);
+            
+        
+
+        marker_dffea64a934e03118a2797a60f6d7506.bindPopup(popup_6d70a8700b4530e7d18e48a117272581)
+        ;
+
+        
+    
+    
+                marker_dffea64a934e03118a2797a60f6d7506.setIcon(icon_4585759ad2bc8e74ca1a382192657c3a);
+            
+    
+            var marker_437c64ef213d0d3db404fdb33800a567 = L.marker(
+                [-34.565845, -58.491722],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_d3f3c4ecbf9057a13feec164efc12ae9 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_324173948812f85837375775c6865618 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_f15422b2078a91f6f3e2f8661e2d0c5e = $(`<div id="html_f15422b2078a91f6f3e2f8661e2d0c5e" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="3299">             <b>Dirección:</b> DIAZ COLODRERO 3309<br>             <b>Comuna:</b> 12<br>             <b>OT:</b> 796186684.0<br>             <b>Observaciones:</b><br>Colocar columna para solicitar traspasos<br>             <b>Caso:</b> 3299         </div>         </div>`)[0];
+                popup_324173948812f85837375775c6865618.setContent(html_f15422b2078a91f6f3e2f8661e2d0c5e);
+            
+        
+
+        marker_437c64ef213d0d3db404fdb33800a567.bindPopup(popup_324173948812f85837375775c6865618)
+        ;
+
+        
+    
+    
+                marker_437c64ef213d0d3db404fdb33800a567.setIcon(icon_d3f3c4ecbf9057a13feec164efc12ae9);
+            
+    
+            var marker_cce6d2f2becf6f05f4a6156c22a26e52 = L.marker(
+                [-34.603983, -58.432017],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_bb8e898d0f2cb5edd70eac23b3efd91a = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_8b9e56551e9bf7eb4c979f3efe82b516 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_df6b9f796564d15bb60d788d3cb089f4 = $(`<div id="html_df6b9f796564d15bb60d788d3cb089f4" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="3634">             <b>Dirección:</b> SARMIENTO 4696<br>             <b>Comuna:</b> 5<br>             <b>OT:</b> 797379007.0<br>             <b>Observaciones:</b><br>Traspasar redes y retirar columna<br>             <b>Caso:</b> 3634         </div>         </div>`)[0];
+                popup_8b9e56551e9bf7eb4c979f3efe82b516.setContent(html_df6b9f796564d15bb60d788d3cb089f4);
+            
+        
+
+        marker_cce6d2f2becf6f05f4a6156c22a26e52.bindPopup(popup_8b9e56551e9bf7eb4c979f3efe82b516)
+        ;
+
+        
+    
+    
+                marker_cce6d2f2becf6f05f4a6156c22a26e52.setIcon(icon_bb8e898d0f2cb5edd70eac23b3efd91a);
+            
+    
+            var marker_04da648e6aba6c3307260e47793ed906 = L.marker(
+                [-34.591481, -58.415439],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_3dd1301d35fab9d56ad46e7fbe2eeb9d = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_b968cfb0f71324264485832d28f0c384 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_338c16af3c46c0b8ad82634b7558cb64 = $(`<div id="html_338c16af3c46c0b8ad82634b7558cb64" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4022">             <b>Dirección:</b> PARAGUAY 3629<br>             <b>Comuna:</b> 14<br>             <b>OT:</b> 799982164.0<br>             <b>Observaciones:</b><br>Colocar columna para solicitar traspasos<br>             <b>Caso:</b> 4022         </div>         </div>`)[0];
+                popup_b968cfb0f71324264485832d28f0c384.setContent(html_338c16af3c46c0b8ad82634b7558cb64);
+            
+        
+
+        marker_04da648e6aba6c3307260e47793ed906.bindPopup(popup_b968cfb0f71324264485832d28f0c384)
+        ;
+
+        
+    
+    
+                marker_04da648e6aba6c3307260e47793ed906.setIcon(icon_3dd1301d35fab9d56ad46e7fbe2eeb9d);
+            
+    
+            var marker_6de90387ca2054e87aa5a7abf92cce85 = L.marker(
+                [-34.58305, -58.478352],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_4b34f242cfbdce2bfe5a898cbdecb4b5 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_2bf9eb583872a61337830aa6368a4d36 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_b09c881291a57e11d21a098c73af1730 = $(`<div id="html_b09c881291a57e11d21a098c73af1730" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4399">             <b>Dirección:</b> AVALOS 1487<br>             <b>Comuna:</b> 15<br>             <b>OT:</b> 801644860.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 4399         </div>         </div>`)[0];
+                popup_2bf9eb583872a61337830aa6368a4d36.setContent(html_b09c881291a57e11d21a098c73af1730);
+            
+        
+
+        marker_6de90387ca2054e87aa5a7abf92cce85.bindPopup(popup_2bf9eb583872a61337830aa6368a4d36)
+        ;
+
+        
+    
+    
+                marker_6de90387ca2054e87aa5a7abf92cce85.setIcon(icon_4b34f242cfbdce2bfe5a898cbdecb4b5);
+            
+    
+            var marker_902f6fffee883db39ddbfea08aceeaf0 = L.marker(
+                [-34.593883, -58.44244],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_75013551f972177ea9ebe5a219701dc3 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_6364b56e4fbfd7571b6a62334930b73d = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_c4baa71d9edfd3d19be3d65265265219 = $(`<div id="html_c4baa71d9edfd3d19be3d65265265219" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4423">             <b>Dirección:</b> VERA 1081<br>             <b>Comuna:</b> 15<br>             <b>OT:</b> 801734625.0<br>             <b>Observaciones:</b><br>PICADA<br>             <b>Caso:</b> 4423         </div>         </div>`)[0];
+                popup_6364b56e4fbfd7571b6a62334930b73d.setContent(html_c4baa71d9edfd3d19be3d65265265219);
+            
+        
+
+        marker_902f6fffee883db39ddbfea08aceeaf0.bindPopup(popup_6364b56e4fbfd7571b6a62334930b73d)
+        ;
+
+        
+    
+    
+                marker_902f6fffee883db39ddbfea08aceeaf0.setIcon(icon_75013551f972177ea9ebe5a219701dc3);
+            
+    
+            var marker_2d13c2ad7a8b3c438d024f188e8c098f = L.marker(
+                [-34.621032, -58.443626],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_1bc745b1c63617c11a0813e7ebec1bf4 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_a55b3fd1644ac07aebb1888b7fc0fccf = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_b70f2aa944e0922ae5dcbcb02877e175 = $(`<div id="html_b70f2aa944e0922ae5dcbcb02877e175" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4426">             <b>Dirección:</b> LORA, FELIX 27<br>             <b>Comuna:</b> 6<br>             <b>OT:</b> 801768138.0<br>             <b>Observaciones:</b><br>Traspaso de redes y retiro de columna TLC ya traspaso el nodo<br>             <b>Caso:</b> 4426         </div>         </div>`)[0];
+                popup_a55b3fd1644ac07aebb1888b7fc0fccf.setContent(html_b70f2aa944e0922ae5dcbcb02877e175);
+            
+        
+
+        marker_2d13c2ad7a8b3c438d024f188e8c098f.bindPopup(popup_a55b3fd1644ac07aebb1888b7fc0fccf)
+        ;
+
+        
+    
+    
+                marker_2d13c2ad7a8b3c438d024f188e8c098f.setIcon(icon_1bc745b1c63617c11a0813e7ebec1bf4);
+            
+    
+            var marker_0d052d2a0321458a11eb7a776f553590 = L.marker(
+                [-34.565958, -58.449125],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_349630687dfc17b9d4503b02f54542d1 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_08d96225a5d8520137759659954ae430 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_5c86ad02d7d08f2809a8e56818cc73e7 = $(`<div id="html_5c86ad02d7d08f2809a8e56818cc73e7" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5589">             <b>Dirección:</b> ARCOS 1520<br>             <b>Comuna:</b> 13<br>             <b>OT:</b> 799540526.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5589         </div>         </div>`)[0];
+                popup_08d96225a5d8520137759659954ae430.setContent(html_5c86ad02d7d08f2809a8e56818cc73e7);
+            
+        
+
+        marker_0d052d2a0321458a11eb7a776f553590.bindPopup(popup_08d96225a5d8520137759659954ae430)
+        ;
+
+        
+    
+    
+                marker_0d052d2a0321458a11eb7a776f553590.setIcon(icon_349630687dfc17b9d4503b02f54542d1);
+            
+    
+            var marker_21edd729d976468cb5c89e8642ee3128 = L.marker(
+                [-34.561192, -58.459962],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_62669ee1d4337beca1176fa3a7c4e0c1 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_11d65f444b8aa90a75f52ab295f8803e = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_0fec28b9818d6557756867495bb5afa0 = $(`<div id="html_0fec28b9818d6557756867495bb5afa0" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4964">             <b>Dirección:</b> OLAZABAL 2590<br>             <b>Comuna:</b> 13<br>             <b>OT:</b> 799540552.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 4964         </div>         </div>`)[0];
+                popup_11d65f444b8aa90a75f52ab295f8803e.setContent(html_0fec28b9818d6557756867495bb5afa0);
+            
+        
+
+        marker_21edd729d976468cb5c89e8642ee3128.bindPopup(popup_11d65f444b8aa90a75f52ab295f8803e)
+        ;
+
+        
+    
+    
+                marker_21edd729d976468cb5c89e8642ee3128.setIcon(icon_62669ee1d4337beca1176fa3a7c4e0c1);
+            
+    
+            var marker_9ba4d9e302d16570e30943e101bfbe37 = L.marker(
+                [-34.609923, -58.397512],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_8a1d39091c573c55210d6ff466f80cbd = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_00b9d1dc6e4fe46d41112c11aea98b74 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_13ae671656bc7271e1c18bf1e76d05da = $(`<div id="html_13ae671656bc7271e1c18bf1e76d05da" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4579">             <b>Dirección:</b> PASCO 10<br>             <b>Comuna:</b> 3<br>             <b>OT:</b> 802438793.0<br>             <b>Observaciones:</b><br>PIcada<br>             <b>Caso:</b> 4579         </div>         </div>`)[0];
+                popup_00b9d1dc6e4fe46d41112c11aea98b74.setContent(html_13ae671656bc7271e1c18bf1e76d05da);
+            
+        
+
+        marker_9ba4d9e302d16570e30943e101bfbe37.bindPopup(popup_00b9d1dc6e4fe46d41112c11aea98b74)
+        ;
+
+        
+    
+    
+                marker_9ba4d9e302d16570e30943e101bfbe37.setIcon(icon_8a1d39091c573c55210d6ff466f80cbd);
+            
+    
+            var marker_fb2aea3d345877f1f11829180f222d56 = L.marker(
+                [-34.543845, -58.464172],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_f1f7837699a194e3e8fb77f04a0298b5 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_34d03d2976849117b659a63f6b2be96a = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_23a5cce69e7e7ef73097563b706f5ebe = $(`<div id="html_23a5cce69e7e7ef73097563b706f5ebe" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4595">             <b>Dirección:</b> PAROISSIEN 1806<br>             <b>Comuna:</b> 13<br>             <b>OT:</b> 802747617.0<br>             <b>Observaciones:</b><br>Aplomar<br>             <b>Caso:</b> 4595         </div>         </div>`)[0];
+                popup_34d03d2976849117b659a63f6b2be96a.setContent(html_23a5cce69e7e7ef73097563b706f5ebe);
+            
+        
+
+        marker_fb2aea3d345877f1f11829180f222d56.bindPopup(popup_34d03d2976849117b659a63f6b2be96a)
+        ;
+
+        
+    
+    
+                marker_fb2aea3d345877f1f11829180f222d56.setIcon(icon_f1f7837699a194e3e8fb77f04a0298b5);
+            
+    
+            var marker_eb40e07b81ff7c8489d0a3ecac7bf689 = L.marker(
+                [-34.611403, -58.424288],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_28d513faf76634a00164cbe94ab67b59 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_a25f302867c379d1ccfdfdc718962c8e = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_96a405e19bc6b2c45ece555420d426fe = $(`<div id="html_96a405e19bc6b2c45ece555420d426fe" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4534">             <b>Dirección:</b> GASCON 93<br>             <b>Comuna:</b> 5<br>             <b>OT:</b> 802747622.0<br>             <b>Observaciones:</b><br>Aplomar<br>             <b>Caso:</b> 4534         </div>         </div>`)[0];
+                popup_a25f302867c379d1ccfdfdc718962c8e.setContent(html_96a405e19bc6b2c45ece555420d426fe);
+            
+        
+
+        marker_eb40e07b81ff7c8489d0a3ecac7bf689.bindPopup(popup_a25f302867c379d1ccfdfdc718962c8e)
+        ;
+
+        
+    
+    
+                marker_eb40e07b81ff7c8489d0a3ecac7bf689.setIcon(icon_28d513faf76634a00164cbe94ab67b59);
+            
+    
+            var marker_98c54a1d7629ac4e4373f47df73e1443 = L.marker(
+                [-34.625499, -58.440625],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_310b9c5ee6c160b12182f158732bed8d = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_bf84453c999170b53d917f4979159846 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_27616d31cc7cf29fc5b3be3bf671ef78 = $(`<div id="html_27616d31cc7cf29fc5b3be3bf671ef78" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4528">             <b>Dirección:</b> BARCO CENTENERA DEL 545<br>             <b>Comuna:</b> 5<br>             <b>OT:</b> 802774521.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 4528         </div>         </div>`)[0];
+                popup_bf84453c999170b53d917f4979159846.setContent(html_27616d31cc7cf29fc5b3be3bf671ef78);
+            
+        
+
+        marker_98c54a1d7629ac4e4373f47df73e1443.bindPopup(popup_bf84453c999170b53d917f4979159846)
+        ;
+
+        
+    
+    
+                marker_98c54a1d7629ac4e4373f47df73e1443.setIcon(icon_310b9c5ee6c160b12182f158732bed8d);
+            
+    
+            var marker_f9268ae19a8c4c612987dd5a4e441017 = L.marker(
+                [-34.579977, -58.436969],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_f3ad9ed5af2c5eae4e737141965c824e = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_11b624ae00b93e1f5d9863788e5e47ea = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_3b810064eb7db909819fc7641612788d = $(`<div id="html_3b810064eb7db909819fc7641612788d" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4643">             <b>Dirección:</b> VOLTAIRE 5867<br>             <b>Comuna:</b> 14<br>             <b>OT:</b> 802774538.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 4643         </div>         </div>`)[0];
+                popup_11b624ae00b93e1f5d9863788e5e47ea.setContent(html_3b810064eb7db909819fc7641612788d);
+            
+        
+
+        marker_f9268ae19a8c4c612987dd5a4e441017.bindPopup(popup_11b624ae00b93e1f5d9863788e5e47ea)
+        ;
+
+        
+    
+    
+                marker_f9268ae19a8c4c612987dd5a4e441017.setIcon(icon_f3ad9ed5af2c5eae4e737141965c824e);
+            
+    
+            var marker_b544691b100fc8c9f9ee304903a54b49 = L.marker(
+                [-34.576987, -58.490766],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_fcfbc9a62ae9efc4040a5b95a1f29233 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_0b45ae18fc2479f480dcdd9cff2b02fe = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_bb64eb964a4dc27d9442210af147605b = $(`<div id="html_bb64eb964a4dc27d9442210af147605b" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4662">             <b>Dirección:</b> ALTOLAGUIRRE 2397<br>             <b>Comuna:</b> 12<br>             <b>OT:</b> 802823938.0<br>             <b>Observaciones:</b><br>Inclinada<br>             <b>Caso:</b> 4662         </div>         </div>`)[0];
+                popup_0b45ae18fc2479f480dcdd9cff2b02fe.setContent(html_bb64eb964a4dc27d9442210af147605b);
+            
+        
+
+        marker_b544691b100fc8c9f9ee304903a54b49.bindPopup(popup_0b45ae18fc2479f480dcdd9cff2b02fe)
+        ;
+
+        
+    
+    
+                marker_b544691b100fc8c9f9ee304903a54b49.setIcon(icon_fcfbc9a62ae9efc4040a5b95a1f29233);
+            
+    
+            var marker_d0b163dbf7d6521be569599f3148d6e9 = L.marker(
+                [-34.54959, -58.476436],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_01e1715a9f6fbf81313cc9f5f911bcab = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_dfc0ad1421bb59e864b0df65ab952c9a = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_06ea2fce92fea8b46894ecfd44e051bb = $(`<div id="html_06ea2fce92fea8b46894ecfd44e051bb" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4686">             <b>Dirección:</b> ZAPIOLA 3927<br>             <b>Comuna:</b> 12<br>             <b>OT:</b> 802857161.0<br>             <b>Observaciones:</b><br>Poste podrido<br>             <b>Caso:</b> 4686         </div>         </div>`)[0];
+                popup_dfc0ad1421bb59e864b0df65ab952c9a.setContent(html_06ea2fce92fea8b46894ecfd44e051bb);
+            
+        
+
+        marker_d0b163dbf7d6521be569599f3148d6e9.bindPopup(popup_dfc0ad1421bb59e864b0df65ab952c9a)
+        ;
+
+        
+    
+    
+                marker_d0b163dbf7d6521be569599f3148d6e9.setIcon(icon_01e1715a9f6fbf81313cc9f5f911bcab);
+            
+    
+            var marker_d2c8aaea5d9368ef3459c483d758ae7f = L.marker(
+                [-34.558883, -58.455082],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_d7781de4692ee437a47f392d7b94fd10 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_bcb6501c68c4d27be181e825642cb312 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_04c66c2f800f36a9b7d9eaf175deae20 = $(`<div id="html_04c66c2f800f36a9b7d9eaf175deae20" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4862">             <b>Dirección:</b> ARCOS 2263<br>             <b>Comuna:</b> 13<br>             <b>OT:</b> 802857379.0<br>             <b>Observaciones:</b><br>picada<br>             <b>Caso:</b> 4862         </div>         </div>`)[0];
+                popup_bcb6501c68c4d27be181e825642cb312.setContent(html_04c66c2f800f36a9b7d9eaf175deae20);
+            
+        
+
+        marker_d2c8aaea5d9368ef3459c483d758ae7f.bindPopup(popup_bcb6501c68c4d27be181e825642cb312)
+        ;
+
+        
+    
+    
+                marker_d2c8aaea5d9368ef3459c483d758ae7f.setIcon(icon_d7781de4692ee437a47f392d7b94fd10);
+            
+    
+            var marker_6dd089c527f148b65844d191a0995509 = L.marker(
+                [-34.546959, -58.483486],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_e7ac6c6d3ac518121f237676ecb0fda4 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_5067f47d70b374b02eb4d612317877c1 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_de3732a389240e76aa9b79e8cf9df23d = $(`<div id="html_de3732a389240e76aa9b79e8cf9df23d" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4744">             <b>Dirección:</b> SUPERI 4510<br>             <b>Comuna:</b> 12<br>             <b>OT:</b> 802988216.0<br>             <b>Observaciones:</b><br>Poste con base quebrada<br>             <b>Caso:</b> 4744         </div>         </div>`)[0];
+                popup_5067f47d70b374b02eb4d612317877c1.setContent(html_de3732a389240e76aa9b79e8cf9df23d);
+            
+        
+
+        marker_6dd089c527f148b65844d191a0995509.bindPopup(popup_5067f47d70b374b02eb4d612317877c1)
+        ;
+
+        
+    
+    
+                marker_6dd089c527f148b65844d191a0995509.setIcon(icon_e7ac6c6d3ac518121f237676ecb0fda4);
+            
+    
+            var marker_6c05877669dae344ab745868b2de3ce5 = L.marker(
+                [-34.612262, -58.443039],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_c5ea47fd117890933ae1e9f0dfffd51f = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_57d3dafdd222c09f04639dd8b6a02564 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_001d85e356b2d362cc0b5cc2757f8b60 = $(`<div id="html_001d85e356b2d362cc0b5cc2757f8b60" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4768">             <b>Dirección:</b> VALLESE, FELIPE 684<br>             <b>Comuna:</b> 6<br>             <b>OT:</b> 802988221.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 4768         </div>         </div>`)[0];
+                popup_57d3dafdd222c09f04639dd8b6a02564.setContent(html_001d85e356b2d362cc0b5cc2757f8b60);
+            
+        
+
+        marker_6c05877669dae344ab745868b2de3ce5.bindPopup(popup_57d3dafdd222c09f04639dd8b6a02564)
+        ;
+
+        
+    
+    
+                marker_6c05877669dae344ab745868b2de3ce5.setIcon(icon_c5ea47fd117890933ae1e9f0dfffd51f);
+            
+    
+            var marker_e7802a88ef88ca43ce3aa5f203af6115 = L.marker(
+                [-34.587493, -58.4158],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_d7b9428c675d7b8d61b36131f6e7ec60 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_1890526c619664f4a214d5433d0f10cc = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_8bd18814c8cc6a7a78ea7d5fb431d944 = $(`<div id="html_8bd18814c8cc6a7a78ea7d5fb431d944" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4811">             <b>Dirección:</b> ALVAREZ, JULIAN 2395<br>             <b>Comuna:</b> 14<br>             <b>OT:</b> 803086849.0<br>             <b>Observaciones:</b><br>Base picada<br>             <b>Caso:</b> 4811         </div>         </div>`)[0];
+                popup_1890526c619664f4a214d5433d0f10cc.setContent(html_8bd18814c8cc6a7a78ea7d5fb431d944);
+            
+        
+
+        marker_e7802a88ef88ca43ce3aa5f203af6115.bindPopup(popup_1890526c619664f4a214d5433d0f10cc)
+        ;
+
+        
+    
+    
+                marker_e7802a88ef88ca43ce3aa5f203af6115.setIcon(icon_d7b9428c675d7b8d61b36131f6e7ec60);
+            
+    
+            var marker_69bdc7584b5418b453ce684362fd360e = L.marker(
+                [-34.592089, -58.44095],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_77171914734733e8f60253d4a019f90d = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_b4112cad634e7f671f0077271658b313 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_47ff5052fbd3209539db62d1c01ecf37 = $(`<div id="html_47ff5052fbd3209539db62d1c01ecf37" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="3525">             <b>Dirección:</b> AGUIRRE 1110<br>             <b>Comuna:</b> 15<br>             <b>OT:</b> 803107677.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 3525         </div>         </div>`)[0];
+                popup_b4112cad634e7f671f0077271658b313.setContent(html_47ff5052fbd3209539db62d1c01ecf37);
+            
+        
+
+        marker_69bdc7584b5418b453ce684362fd360e.bindPopup(popup_b4112cad634e7f671f0077271658b313)
+        ;
+
+        
+    
+    
+                marker_69bdc7584b5418b453ce684362fd360e.setIcon(icon_77171914734733e8f60253d4a019f90d);
+            
+    
+            var marker_fcb23c0011c235ebbfbf1497de38767b = L.marker(
+                [-34.679704, -58.491041],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_95fbaff3770882f7f89c4b40d5a5894b = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_e25253685ca3b9d8f6b61017f13fefd8 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_c86a1b9acd59f99a0a7e8f7fe89f43ad = $(`<div id="html_c86a1b9acd59f99a0a7e8f7fe89f43ad" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4915">             <b>Dirección:</b> BARCA CABO DE HORNOS 6753<br>             <b>Comuna:</b> 8<br>             <b>OT:</b> 803607875.0<br>             <b>Observaciones:</b><br>Poste<br>             <b>Caso:</b> 4915         </div>         </div>`)[0];
+                popup_e25253685ca3b9d8f6b61017f13fefd8.setContent(html_c86a1b9acd59f99a0a7e8f7fe89f43ad);
+            
+        
+
+        marker_fcb23c0011c235ebbfbf1497de38767b.bindPopup(popup_e25253685ca3b9d8f6b61017f13fefd8)
+        ;
+
+        
+    
+    
+                marker_fcb23c0011c235ebbfbf1497de38767b.setIcon(icon_95fbaff3770882f7f89c4b40d5a5894b);
+            
+    
+            var marker_77d580749ae11e9e726c44b542b6252f = L.marker(
+                [-34.629827, -58.474432],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_8c2b70326dcfc824e0908bc6e3993dd2 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_ea72f20c49e952017a2a1196f29e60aa = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_bdc4a3af8c143c549d54349b327d70ce = $(`<div id="html_bdc4a3af8c143c549d54349b327d70ce" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5110">             <b>Dirección:</b> CUENCA 158<br>             <b>Comuna:</b> 7<br>             <b>OT:</b> 804287943.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5110         </div>         </div>`)[0];
+                popup_ea72f20c49e952017a2a1196f29e60aa.setContent(html_bdc4a3af8c143c549d54349b327d70ce);
+            
+        
+
+        marker_77d580749ae11e9e726c44b542b6252f.bindPopup(popup_ea72f20c49e952017a2a1196f29e60aa)
+        ;
+
+        
+    
+    
+                marker_77d580749ae11e9e726c44b542b6252f.setIcon(icon_8c2b70326dcfc824e0908bc6e3993dd2);
+            
+    
+            var marker_8a40e91dd739d9cf66c63bcc711b5606 = L.marker(
+                [-34.628211, -58.426593],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_71540d2d8f60aaf0829552490565b075 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_8a61e4c5398726f50520d57481171708 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_6356ba9b6ec86454ef4a97c53b5ffae6 = $(`<div id="html_6356ba9b6ec86454ef4a97c53b5ffae6" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="2485">             <b>Dirección:</b> LA PLATA AV. 1095<br>             <b>Comuna:</b> 7<br>             <b>OT:</b> 804302893.0<br>             <b>Observaciones:</b><br>Sacar ancla de rienda vieja y cementar vereda<br>             <b>Caso:</b> 2485         </div>         </div>`)[0];
+                popup_8a61e4c5398726f50520d57481171708.setContent(html_6356ba9b6ec86454ef4a97c53b5ffae6);
+            
+        
+
+        marker_8a40e91dd739d9cf66c63bcc711b5606.bindPopup(popup_8a61e4c5398726f50520d57481171708)
+        ;
+
+        
+    
+    
+                marker_8a40e91dd739d9cf66c63bcc711b5606.setIcon(icon_71540d2d8f60aaf0829552490565b075);
+            
+    
+            var marker_ce283ab53344a8b2d8c7108d564591d2 = L.marker(
+                [-34.629277, -58.458015],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_6ee3cb95e21deb62bfff73a595a7be9a = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_ee4b9f7d3957ca12330b98c10194714d = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_66d79b3bdf4d81b8cceb79559e1ff439 = $(`<div id="html_66d79b3bdf4d81b8cceb79559e1ff439" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="3082">             <b>Dirección:</b> CAMACUA 141<br>             <b>Comuna:</b> 7<br>             <b>OT:</b> 804309680.0<br>             <b>Observaciones:</b><br>Aplomar<br>             <b>Caso:</b> 3082         </div>         </div>`)[0];
+                popup_ee4b9f7d3957ca12330b98c10194714d.setContent(html_66d79b3bdf4d81b8cceb79559e1ff439);
+            
+        
+
+        marker_ce283ab53344a8b2d8c7108d564591d2.bindPopup(popup_ee4b9f7d3957ca12330b98c10194714d)
+        ;
+
+        
+    
+    
+                marker_ce283ab53344a8b2d8c7108d564591d2.setIcon(icon_6ee3cb95e21deb62bfff73a595a7be9a);
+            
+    
+            var marker_ea5af7d1bfc9242f8185dd4ff46f11b7 = L.marker(
+                [-34.634983, -58.466324],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_98c73c27d4eb0308de0f4966b0c6f6ca = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_1653ec5d72d456b5e03c53cf4f2e1a9d = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_2619a686df27c19f1d21bbd814c48780 = $(`<div id="html_2619a686df27c19f1d21bbd814c48780" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="3285">             <b>Dirección:</b> LAFUENTE 391<br>             <b>Comuna:</b> 4<br>             <b>OT:</b> 804309688.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 3285         </div>         </div>`)[0];
+                popup_1653ec5d72d456b5e03c53cf4f2e1a9d.setContent(html_2619a686df27c19f1d21bbd814c48780);
+            
+        
+
+        marker_ea5af7d1bfc9242f8185dd4ff46f11b7.bindPopup(popup_1653ec5d72d456b5e03c53cf4f2e1a9d)
+        ;
+
+        
+    
+    
+                marker_ea5af7d1bfc9242f8185dd4ff46f11b7.setIcon(icon_98c73c27d4eb0308de0f4966b0c6f6ca);
+            
+    
+            var marker_34f11ced5fb6d27157b37dbcfbaa4fc6 = L.marker(
+                [-34.566015, -58.47538],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_c662f2a3029786884af7d4656ce91448 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_765ba25a47cd185d1016525b815c4b56 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_3dc2a5728cfcf59ee003662264e6dc88 = $(`<div id="html_3dc2a5728cfcf59ee003662264e6dc88" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="3348">             <b>Dirección:</b> ESTOMBA 2626<br>             <b>Comuna:</b> 12<br>             <b>OT:</b> 804309704.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 3348         </div>         </div>`)[0];
+                popup_765ba25a47cd185d1016525b815c4b56.setContent(html_3dc2a5728cfcf59ee003662264e6dc88);
+            
+        
+
+        marker_34f11ced5fb6d27157b37dbcfbaa4fc6.bindPopup(popup_765ba25a47cd185d1016525b815c4b56)
+        ;
+
+        
+    
+    
+                marker_34f11ced5fb6d27157b37dbcfbaa4fc6.setIcon(icon_c662f2a3029786884af7d4656ce91448);
+            
+    
+            var marker_de41fd96cca5f994d67f2ccca229d529 = L.marker(
+                [-34.582874, -58.48396],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_93a2f0f1aaeb1aef0822d25a6a04ebff = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_68543b4c85707c65c910b2bd7ee8deb7 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_be5a0eab9da7bb980813c1a508d15c61 = $(`<div id="html_be5a0eab9da7bb980813c1a508d15c61" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4494">             <b>Dirección:</b> BALLIVIAN 2987<br>             <b>Comuna:</b> 15<br>             <b>OT:</b> 804309772.0<br>             <b>Observaciones:</b><br>Aplomar<br>             <b>Caso:</b> 4494         </div>         </div>`)[0];
+                popup_68543b4c85707c65c910b2bd7ee8deb7.setContent(html_be5a0eab9da7bb980813c1a508d15c61);
+            
+        
+
+        marker_de41fd96cca5f994d67f2ccca229d529.bindPopup(popup_68543b4c85707c65c910b2bd7ee8deb7)
+        ;
+
+        
+    
+    
+                marker_de41fd96cca5f994d67f2ccca229d529.setIcon(icon_93a2f0f1aaeb1aef0822d25a6a04ebff);
+            
+    
+            var marker_fd41882d8c3073add4d943624147088d = L.marker(
+                [-34.61969, -58.439791],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_23856e5b7452a6557004c0f5b2404b41 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_2417908daa79f6ac43cdf37ef0844567 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_724cce8b8062dd030e372ef432c6729b = $(`<div id="html_724cce8b8062dd030e372ef432c6729b" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="4572">             <b>Dirección:</b> RIVADAVIA AV. 5263<br>             <b>Comuna:</b> 6<br>             <b>OT:</b> 804309785.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 4572         </div>         </div>`)[0];
+                popup_2417908daa79f6ac43cdf37ef0844567.setContent(html_724cce8b8062dd030e372ef432c6729b);
+            
+        
+
+        marker_fd41882d8c3073add4d943624147088d.bindPopup(popup_2417908daa79f6ac43cdf37ef0844567)
+        ;
+
+        
+    
+    
+                marker_fd41882d8c3073add4d943624147088d.setIcon(icon_23856e5b7452a6557004c0f5b2404b41);
+            
+    
+            var marker_a1abd660f5e6b580a76647296a17c62a = L.marker(
+                [-34.630001, -58.477988],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_25733b764fa4ecccf85bbb36a853cca3 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_60ca12437dee9d2032ebb6dee90dbf30 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_9d15fdf9b0593b99d65df0027b934add = $(`<div id="html_9d15fdf9b0593b99d65df0027b934add" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5127">             <b>Dirección:</b> LAMARCA, EMILIO 224<br>             <b>Comuna:</b> 10<br>             <b>OT:</b> 804323949.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5127         </div>         </div>`)[0];
+                popup_60ca12437dee9d2032ebb6dee90dbf30.setContent(html_9d15fdf9b0593b99d65df0027b934add);
+            
+        
+
+        marker_a1abd660f5e6b580a76647296a17c62a.bindPopup(popup_60ca12437dee9d2032ebb6dee90dbf30)
+        ;
+
+        
+    
+    
+                marker_a1abd660f5e6b580a76647296a17c62a.setIcon(icon_25733b764fa4ecccf85bbb36a853cca3);
+            
+    
+            var marker_700a34b5b2c1ace75c54c023f0626cbc = L.marker(
+                [-34.627623, -58.4716],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_29064014e62b59dc1235413f02045982 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_decfe037c9405217a127f84bb8437ab2 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_97234ae0b2a439172160a2f578f07507 = $(`<div id="html_97234ae0b2a439172160a2f578f07507" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5124">             <b>Dirección:</b> BOGOTA 2936<br>             <b>Comuna:</b> 7<br>             <b>OT:</b> 804323945.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5124         </div>         </div>`)[0];
+                popup_decfe037c9405217a127f84bb8437ab2.setContent(html_97234ae0b2a439172160a2f578f07507);
+            
+        
+
+        marker_700a34b5b2c1ace75c54c023f0626cbc.bindPopup(popup_decfe037c9405217a127f84bb8437ab2)
+        ;
+
+        
+    
+    
+                marker_700a34b5b2c1ace75c54c023f0626cbc.setIcon(icon_29064014e62b59dc1235413f02045982);
+            
+    
+            var marker_d46491d4e451c262cb14675919d0d776 = L.marker(
+                [-34.588936, -58.508582],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_ca7101892c939f3be2496a6cd99d51f0 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_b25b547131dbe2db38e109beb900201a = L.popup({
+  "maxWidth": 208,
+});
+
+        
+            
+                var html_9391d0075d908ea78e153eee9fc806c8 = $(`<div id="html_9391d0075d908ea78e153eee9fc806c8" style="width: 100.0%; height: 100.0%;">         <div style='width: 208px; font: 12px Arial;' data-caso="5138">             <b>Dirección:</b> LOPEZ, CARLOS ANTONIO 3326<br>             <b>Comuna:</b> 11<br>             <b>OT:</b> 804468459.0<br>             <b>Observaciones:</b><br>COLUMNA INCLINADA<br>             <b>Caso:</b> 5138         </div>         </div>`)[0];
+                popup_b25b547131dbe2db38e109beb900201a.setContent(html_9391d0075d908ea78e153eee9fc806c8);
+            
+        
+
+        marker_d46491d4e451c262cb14675919d0d776.bindPopup(popup_b25b547131dbe2db38e109beb900201a)
+        ;
+
+        
+    
+    
+                marker_d46491d4e451c262cb14675919d0d776.setIcon(icon_ca7101892c939f3be2496a6cd99d51f0);
+            
+    
+            var marker_13105c61c8251e0aff7501b969f04cec = L.marker(
+                [-34.589076, -58.508809],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_c0beb3f68d3642e4e7b4166f7b019622 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_1db4569b12ad10df21c318d8fb879d4a = L.popup({
+  "maxWidth": 208,
+});
+
+        
+            
+                var html_a309ee9b0a9d808cfe338bcdf063279d = $(`<div id="html_a309ee9b0a9d808cfe338bcdf063279d" style="width: 100.0%; height: 100.0%;">         <div style='width: 208px; font: 12px Arial;' data-caso="5139">             <b>Dirección:</b> LOPEZ, CARLOS ANTONIO 3346<br>             <b>Comuna:</b> 11<br>             <b>OT:</b> 804468467.0<br>             <b>Observaciones:</b><br>COLUMNA INCLINADA<br>             <b>Caso:</b> 5139         </div>         </div>`)[0];
+                popup_1db4569b12ad10df21c318d8fb879d4a.setContent(html_a309ee9b0a9d808cfe338bcdf063279d);
+            
+        
+
+        marker_13105c61c8251e0aff7501b969f04cec.bindPopup(popup_1db4569b12ad10df21c318d8fb879d4a)
+        ;
+
+        
+    
+    
+                marker_13105c61c8251e0aff7501b969f04cec.setIcon(icon_c0beb3f68d3642e4e7b4166f7b019622);
+            
+    
+            var marker_b7ed0ac559dd951dacaebc846361ae17 = L.marker(
+                [-34.554352, -58.478025],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_ba057bca100d18bac3670531c4a5fd68 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_34cfa36c47d4cdcff1905486f80a43a2 = L.popup({
+  "maxWidth": 224,
+});
+
+        
+            
+                var html_90604f1801018e3207473193e6880262 = $(`<div id="html_90604f1801018e3207473193e6880262" style="width: 100.0%; height: 100.0%;">         <div style='width: 224px; font: 12px Arial;' data-caso="5458">             <b>Dirección:</b> LARRALDE, CRISOLOGO AV. 3511<br>             <b>Comuna:</b> 12<br>             <b>OT:</b> 804497873.0<br>             <b>Observaciones:</b><br>Aplomar<br>             <b>Caso:</b> 5458         </div>         </div>`)[0];
+                popup_34cfa36c47d4cdcff1905486f80a43a2.setContent(html_90604f1801018e3207473193e6880262);
+            
+        
+
+        marker_b7ed0ac559dd951dacaebc846361ae17.bindPopup(popup_34cfa36c47d4cdcff1905486f80a43a2)
+        ;
+
+        
+    
+    
+                marker_b7ed0ac559dd951dacaebc846361ae17.setIcon(icon_ba057bca100d18bac3670531c4a5fd68);
+            
+    
+            var marker_e4860f6a157e09509a7637e440de2da8 = L.marker(
+                [-34.567849, -58.46161],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_e6a6683214da1542764fbd38c3712c5d = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_bd4c3c480738017845debfe4a998f180 = L.popup({
+  "maxWidth": 272,
+});
+
+        
+            
+                var html_0224b49a8e2767d72ac86747fc8183cc = $(`<div id="html_0224b49a8e2767d72ac86747fc8183cc" style="width: 100.0%; height: 100.0%;">         <div style='width: 272px; font: 12px Arial;' data-caso="5464">             <b>Dirección:</b> SUCRE, ANTONIO JOSE DE, MCAL. 3100<br>             <b>Comuna:</b> 13<br>             <b>OT:</b> 804497880.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5464         </div>         </div>`)[0];
+                popup_bd4c3c480738017845debfe4a998f180.setContent(html_0224b49a8e2767d72ac86747fc8183cc);
+            
+        
+
+        marker_e4860f6a157e09509a7637e440de2da8.bindPopup(popup_bd4c3c480738017845debfe4a998f180)
+        ;
+
+        
+    
+    
+                marker_e4860f6a157e09509a7637e440de2da8.setIcon(icon_e6a6683214da1542764fbd38c3712c5d);
+            
+    
+            var marker_a0e8f81bc980f9e43a2d3fca52c8f4f2 = L.marker(
+                [-34.558545, -58.471087],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_462ca793566d80264bebe8f87ae86a31 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_bc3c8db32ba6390755e42624df3a86aa = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_e688cb96f8592c3478b39dac7cf8b994 = $(`<div id="html_e688cb96f8592c3478b39dac7cf8b994" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5471">             <b>Dirección:</b> QUESADA 3212<br>             <b>Comuna:</b> 12<br>             <b>OT:</b> 804497908.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5471         </div>         </div>`)[0];
+                popup_bc3c8db32ba6390755e42624df3a86aa.setContent(html_e688cb96f8592c3478b39dac7cf8b994);
+            
+        
+
+        marker_a0e8f81bc980f9e43a2d3fca52c8f4f2.bindPopup(popup_bc3c8db32ba6390755e42624df3a86aa)
+        ;
+
+        
+    
+    
+                marker_a0e8f81bc980f9e43a2d3fca52c8f4f2.setIcon(icon_462ca793566d80264bebe8f87ae86a31);
+            
+    
+            var marker_c54a1a8d27fba9742a93affc1c950e9a = L.marker(
+                [-34.623886, -58.479563],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_15c673bb7e2911d30b1303cc7882d548 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_e9b825240ce797f29275f6ffaaf1919d = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_8870a2d02ac2b37401a517222fe3fd45 = $(`<div id="html_8870a2d02ac2b37401a517222fe3fd45" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5479">             <b>Dirección:</b> CONCORDIA 812<br>             <b>Comuna:</b> 7<br>             <b>OT:</b> 804497942.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5479         </div>         </div>`)[0];
+                popup_e9b825240ce797f29275f6ffaaf1919d.setContent(html_8870a2d02ac2b37401a517222fe3fd45);
+            
+        
+
+        marker_c54a1a8d27fba9742a93affc1c950e9a.bindPopup(popup_e9b825240ce797f29275f6ffaaf1919d)
+        ;
+
+        
+    
+    
+                marker_c54a1a8d27fba9742a93affc1c950e9a.setIcon(icon_15c673bb7e2911d30b1303cc7882d548);
+            
+    
+            var marker_f618bce24aae08bd8129f8f9e37566d5 = L.marker(
+                [-34.629262, -58.471643],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_606f78bb26693a495037cba4ff145198 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_a24fd7f7301698b4738138d054eebcc6 = L.popup({
+  "maxWidth": 224,
+});
+
+        
+            
+                var html_1bca33783e23f81844a880b8fa5ff10a = $(`<div id="html_1bca33783e23f81844a880b8fa5ff10a" style="width: 100.0%; height: 100.0%;">         <div style='width: 224px; font: 12px Arial;' data-caso="5485">             <b>Dirección:</b> FLORES, VENANCIO, GRAL. 2977<br>             <b>Comuna:</b> 7<br>             <b>OT:</b> 804497954.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5485         </div>         </div>`)[0];
+                popup_a24fd7f7301698b4738138d054eebcc6.setContent(html_1bca33783e23f81844a880b8fa5ff10a);
+            
+        
+
+        marker_f618bce24aae08bd8129f8f9e37566d5.bindPopup(popup_a24fd7f7301698b4738138d054eebcc6)
+        ;
+
+        
+    
+    
+                marker_f618bce24aae08bd8129f8f9e37566d5.setIcon(icon_606f78bb26693a495037cba4ff145198);
+            
+    
+            var marker_5a7bcdf74072cea52979c2dda9ddf328 = L.marker(
+                [-34.627283, -58.426804],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_42e54a58e5e56719032c742c91bd34e3 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_9d945b80bba7ebc785f76e60d28a070f = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_5026e2dee9eb6510c51fc8d351ed63fe = $(`<div id="html_5026e2dee9eb6510c51fc8d351ed63fe" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5500">             <b>Dirección:</b> LA PLATA AV. 1013<br>             <b>Comuna:</b> 7<br>             <b>OT:</b> 804568914.0<br>             <b>Observaciones:</b><br>Aplomar<br>             <b>Caso:</b> 5500         </div>         </div>`)[0];
+                popup_9d945b80bba7ebc785f76e60d28a070f.setContent(html_5026e2dee9eb6510c51fc8d351ed63fe);
+            
+        
+
+        marker_5a7bcdf74072cea52979c2dda9ddf328.bindPopup(popup_9d945b80bba7ebc785f76e60d28a070f)
+        ;
+
+        
+    
+    
+                marker_5a7bcdf74072cea52979c2dda9ddf328.setIcon(icon_42e54a58e5e56719032c742c91bd34e3);
+            
+    
+            var marker_501c83d4915e3e23cd01cfb129a2d056 = L.marker(
+                [-34.552844, -58.457701],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_5ba905fc00deae663d75e9cee104d8bc = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_0f5e71e4ede272bd25069b766f117e4f = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_ddface9d24db03e30aec024c0dd95f72 = $(`<div id="html_ddface9d24db03e30aec024c0dd95f72" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5507">             <b>Dirección:</b> CONGRESO 1927<br>             <b>Comuna:</b> 13<br>             <b>OT:</b> 804568921.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5507         </div>         </div>`)[0];
+                popup_0f5e71e4ede272bd25069b766f117e4f.setContent(html_ddface9d24db03e30aec024c0dd95f72);
+            
+        
+
+        marker_501c83d4915e3e23cd01cfb129a2d056.bindPopup(popup_0f5e71e4ede272bd25069b766f117e4f)
+        ;
+
+        
+    
+    
+                marker_501c83d4915e3e23cd01cfb129a2d056.setIcon(icon_5ba905fc00deae663d75e9cee104d8bc);
+            
+    
+            var marker_6a9310960bd24a4236a0f7361dd1820f = L.marker(
+                [-34.611573, -58.485232],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_7b4186f80104afbf60584d7b8d8177e4 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_41bab4989352fb17bc048d8cf630acd7 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_7054f69988c6a87e0cd5ec167539d65d = $(`<div id="html_7054f69988c6a87e0cd5ec167539d65d" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5521">             <b>Dirección:</b> EL PEREGRINO 3115<br>             <b>Comuna:</b> 11<br>             <b>OT:</b> 804569000.0<br>             <b>Observaciones:</b><br>Aplomar Poste<br>             <b>Caso:</b> 5521         </div>         </div>`)[0];
+                popup_41bab4989352fb17bc048d8cf630acd7.setContent(html_7054f69988c6a87e0cd5ec167539d65d);
+            
+        
+
+        marker_6a9310960bd24a4236a0f7361dd1820f.bindPopup(popup_41bab4989352fb17bc048d8cf630acd7)
+        ;
+
+        
+    
+    
+                marker_6a9310960bd24a4236a0f7361dd1820f.setIcon(icon_7b4186f80104afbf60584d7b8d8177e4);
+            
+    
+            var marker_3f25103c7fab64a411113a009793540b = L.marker(
+                [-34.557192, -58.492309],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_a19514bf35e45363d22937dd135d0e0f = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_11268c77356da3009fef9b671dd47af7 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_e8032bb4d4c5e48ee4e9e2b82e39ecc1 = $(`<div id="html_e8032bb4d4c5e48ee4e9e2b82e39ecc1" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5600">             <b>Dirección:</b> MILLER 3988<br>             <b>Comuna:</b> 12<br>             <b>OT:</b> 804732247.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5600         </div>         </div>`)[0];
+                popup_11268c77356da3009fef9b671dd47af7.setContent(html_e8032bb4d4c5e48ee4e9e2b82e39ecc1);
+            
+        
+
+        marker_3f25103c7fab64a411113a009793540b.bindPopup(popup_11268c77356da3009fef9b671dd47af7)
+        ;
+
+        
+    
+    
+                marker_3f25103c7fab64a411113a009793540b.setIcon(icon_a19514bf35e45363d22937dd135d0e0f);
+            
+    
+            var marker_f39d08f32173ed409219961b72f2fd15 = L.marker(
+                [-34.571063, -58.471885],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_db1f036526353ea1cacf13fdcdc8d459 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_f59f666a2c382310229764b697fb2101 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_c4a83faa8b140e2856056cf919ca4bf6 = $(`<div id="html_c4a83faa8b140e2856056cf919ca4bf6" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5601">             <b>Dirección:</b> JURAMENTO 3964<br>             <b>Comuna:</b> 12<br>             <b>OT:</b> 804732274.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5601         </div>         </div>`)[0];
+                popup_f59f666a2c382310229764b697fb2101.setContent(html_c4a83faa8b140e2856056cf919ca4bf6);
+            
+        
+
+        marker_f39d08f32173ed409219961b72f2fd15.bindPopup(popup_f59f666a2c382310229764b697fb2101)
+        ;
+
+        
+    
+    
+                marker_f39d08f32173ed409219961b72f2fd15.setIcon(icon_db1f036526353ea1cacf13fdcdc8d459);
+            
+    
+            var marker_54a6a1ae410617e246d57da8547d2ad2 = L.marker(
+                [-34.556576, -58.45573],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_5af419ca609d4886a80c9a0a4947a2bb = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_1d3c4bce5902d99fb84fa8e29589c557 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_3f314762a128843af7425168744116d5 = $(`<div id="html_3f314762a128843af7425168744116d5" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5590">             <b>Dirección:</b> O'HIGGINS 2441<br>             <b>Comuna:</b> 13<br>             <b>OT:</b> 804732275.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5590         </div>         </div>`)[0];
+                popup_1d3c4bce5902d99fb84fa8e29589c557.setContent(html_3f314762a128843af7425168744116d5);
+            
+        
+
+        marker_54a6a1ae410617e246d57da8547d2ad2.bindPopup(popup_1d3c4bce5902d99fb84fa8e29589c557)
+        ;
+
+        
+    
+    
+                marker_54a6a1ae410617e246d57da8547d2ad2.setIcon(icon_5af419ca609d4886a80c9a0a4947a2bb);
+            
+    
+            var marker_18af0862b2b9b8150a017cb76b1b8df4 = L.marker(
+                [-34.572424, -58.430419],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_3aad2d1094009dacd6b73f53b7410060 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "orange",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_e140caa5965f608a47232e6b8cbf48c1 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_7c97790a6dbe07a4d8c6232fc0851217 = $(`<div id="html_7c97790a6dbe07a4d8c6232fc0851217" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="-379">             <b>Dirección:</b> BAEZ 231<br>             <b>Comuna:</b> 106594 - PALERMO<br>             <b>OT:</b> 804905127.0<br>             <b>Observaciones:</b><br>Desmontar poste<br>             <b>Caso:</b> -379         </div>         </div>`)[0];
+                popup_e140caa5965f608a47232e6b8cbf48c1.setContent(html_7c97790a6dbe07a4d8c6232fc0851217);
+            
+        
+
+        marker_18af0862b2b9b8150a017cb76b1b8df4.bindPopup(popup_e140caa5965f608a47232e6b8cbf48c1)
+        ;
+
+        
+    
+    
+                marker_18af0862b2b9b8150a017cb76b1b8df4.setIcon(icon_3aad2d1094009dacd6b73f53b7410060);
+            
+    
+            var marker_d84b47abe4641c59149b4918f0f31ab8 = L.marker(
+                [-34.6369, -58.463339],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_320baff71360b78baea7d526ac66c01f = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_5f680a0ff725e07105683d517b803c82 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_e91e76fb5b72ad52cbf67704f1963d65 = $(`<div id="html_e91e76fb5b72ad52cbf67704f1963d65" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5664">             <b>Dirección:</b> REMEDIOS 2675<br>             <b>Comuna:</b> 7<br>             <b>OT:</b> 805507228.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5664         </div>         </div>`)[0];
+                popup_5f680a0ff725e07105683d517b803c82.setContent(html_e91e76fb5b72ad52cbf67704f1963d65);
+            
+        
+
+        marker_d84b47abe4641c59149b4918f0f31ab8.bindPopup(popup_5f680a0ff725e07105683d517b803c82)
+        ;
+
+        
+    
+    
+                marker_d84b47abe4641c59149b4918f0f31ab8.setIcon(icon_320baff71360b78baea7d526ac66c01f);
+            
+    
+            var marker_b3bd2e415af66179dbf9fcd2e2030be7 = L.marker(
+                [-34.62917, -58.452319],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_e4055fa9d2e546537bd71aa904076f4e = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_7eebf59eea99e14a29e92c29c26d5f60 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_9946da33ee9c5b084932642871f3e603 = $(`<div id="html_9946da33ee9c5b084932642871f3e603" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5668">             <b>Dirección:</b> CURAPALIGUE 367<br>             <b>Comuna:</b> 7<br>             <b>OT:</b> 805507231.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5668         </div>         </div>`)[0];
+                popup_7eebf59eea99e14a29e92c29c26d5f60.setContent(html_9946da33ee9c5b084932642871f3e603);
+            
+        
+
+        marker_b3bd2e415af66179dbf9fcd2e2030be7.bindPopup(popup_7eebf59eea99e14a29e92c29c26d5f60)
+        ;
+
+        
+    
+    
+                marker_b3bd2e415af66179dbf9fcd2e2030be7.setIcon(icon_e4055fa9d2e546537bd71aa904076f4e);
+            
+    
+            var marker_083e40159a38f7236061e5736a528209 = L.marker(
+                [-34.60001, -58.433529],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_1b297206232914b94030194ea8b02f68 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_7c5243c7f57c06a89d827f11229f340b = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_5906ba75c711c28a763b7e020688a1c7 = $(`<div id="html_5906ba75c711c28a763b7e020688a1c7" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5699">             <b>Dirección:</b> AGUIRRE 218<br>             <b>Comuna:</b> 15<br>             <b>OT:</b> 805507345.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5699         </div>         </div>`)[0];
+                popup_7c5243c7f57c06a89d827f11229f340b.setContent(html_5906ba75c711c28a763b7e020688a1c7);
+            
+        
+
+        marker_083e40159a38f7236061e5736a528209.bindPopup(popup_7c5243c7f57c06a89d827f11229f340b)
+        ;
+
+        
+    
+    
+                marker_083e40159a38f7236061e5736a528209.setIcon(icon_1b297206232914b94030194ea8b02f68);
+            
+    
+            var marker_d1101563ee0e1e371c899a1651a652b3 = L.marker(
+                [-34.570441, -58.471481],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_b03dc7d2a3b618b5cef30508b0847a05 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_c3adb5e4caf9fe9e53b96bdf9a45376d = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_d772bc1c9642b8e27bea44f74e7df751 = $(`<div id="html_d772bc1c9642b8e27bea44f74e7df751" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5700">             <b>Dirección:</b> ESTOMBA 2119<br>             <b>Comuna:</b> 12<br>             <b>OT:</b> 805507349.0<br>             <b>Observaciones:</b><br>Aplomar<br>             <b>Caso:</b> 5700         </div>         </div>`)[0];
+                popup_c3adb5e4caf9fe9e53b96bdf9a45376d.setContent(html_d772bc1c9642b8e27bea44f74e7df751);
+            
+        
+
+        marker_d1101563ee0e1e371c899a1651a652b3.bindPopup(popup_c3adb5e4caf9fe9e53b96bdf9a45376d)
+        ;
+
+        
+    
+    
+                marker_d1101563ee0e1e371c899a1651a652b3.setIcon(icon_b03dc7d2a3b618b5cef30508b0847a05);
+            
+    
+            var marker_00f2a8c025c7d3c750c3d9f7059d9ec6 = L.marker(
+                [-34.588887, -58.506061],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_15b3b3cdeb348d2ac85adc1a1b28ce45 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_fb39d4ae02c8318df1844f5bba667149 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_00239bec7d474ee2b6826f2623542b59 = $(`<div id="html_00239bec7d474ee2b6826f2623542b59" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5715">             <b>Dirección:</b> CUENCA 4690<br>             <b>Comuna:</b> 12<br>             <b>OT:</b> 805579094.0<br>             <b>Observaciones:</b><br>Aplomar poste<br>             <b>Caso:</b> 5715         </div>         </div>`)[0];
+                popup_fb39d4ae02c8318df1844f5bba667149.setContent(html_00239bec7d474ee2b6826f2623542b59);
+            
+        
+
+        marker_00f2a8c025c7d3c750c3d9f7059d9ec6.bindPopup(popup_fb39d4ae02c8318df1844f5bba667149)
+        ;
+
+        
+    
+    
+                marker_00f2a8c025c7d3c750c3d9f7059d9ec6.setIcon(icon_15b3b3cdeb348d2ac85adc1a1b28ce45);
+            
+    
+            var marker_c367152297ae80f3c31a96978d27b357 = L.marker(
+                [-34.57974, -58.499967],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_58567423ed3da497b4193406c776881d = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_973d8acddad4ef7e244a5f43aab9c2cc = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_3b3b9dc1600ba27abf2aec91e13293df = $(`<div id="html_3b3b9dc1600ba27abf2aec91e13293df" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5719">             <b>Dirección:</b> CABEZON, JOSE LEON 2440<br>             <b>Comuna:</b> 12<br>             <b>OT:</b> 805579157.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5719         </div>         </div>`)[0];
+                popup_973d8acddad4ef7e244a5f43aab9c2cc.setContent(html_3b3b9dc1600ba27abf2aec91e13293df);
+            
+        
+
+        marker_c367152297ae80f3c31a96978d27b357.bindPopup(popup_973d8acddad4ef7e244a5f43aab9c2cc)
+        ;
+
+        
+    
+    
+                marker_c367152297ae80f3c31a96978d27b357.setIcon(icon_58567423ed3da497b4193406c776881d);
+            
+    
+            var marker_e358b30ee273f4911f166ac904f0681e = L.marker(
+                [-34.579354, -58.499355],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_e1fe1b23e6382453ddbab50d3d4a7336 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_9e8eb5dd59eb4186d064216e4c51e393 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_06bf9b95ac7b308bc68fc3c0d35275bc = $(`<div id="html_06bf9b95ac7b308bc68fc3c0d35275bc" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5720">             <b>Dirección:</b> CABEZON, JOSE LEON 2398<br>             <b>Comuna:</b> 12<br>             <b>OT:</b> 805579172.0<br>             <b>Observaciones:</b><br>Picada<br>             <b>Caso:</b> 5720         </div>         </div>`)[0];
+                popup_9e8eb5dd59eb4186d064216e4c51e393.setContent(html_06bf9b95ac7b308bc68fc3c0d35275bc);
+            
+        
+
+        marker_e358b30ee273f4911f166ac904f0681e.bindPopup(popup_9e8eb5dd59eb4186d064216e4c51e393)
+        ;
+
+        
+    
+    
+                marker_e358b30ee273f4911f166ac904f0681e.setIcon(icon_e1fe1b23e6382453ddbab50d3d4a7336);
+            
+    
+            var marker_bcfc1b671bbf11dcedb4ec5729ddcf2e = L.marker(
+                [-34.576521, -58.49139],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_6f336590276a432e94542ad2744fa401 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "orange",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_f6bd3c83fa474c0ad7843652f71dd022 = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_867267031ce372703e3103354c0c1bc6 = $(`<div id="html_867267031ce372703e3103354c0c1bc6" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="805579175">             <b>Dirección:</b> Altolaguirre 2466<br>             <b>Comuna:</b> 12<br>             <b>OT:</b> 805579175.0<br>             <b>Observaciones:</b><br>Retirar rienda por entrada de vehiculo<br>             <b>Caso:</b> 805579175         </div>         </div>`)[0];
+                popup_f6bd3c83fa474c0ad7843652f71dd022.setContent(html_867267031ce372703e3103354c0c1bc6);
+            
+        
+
+        marker_bcfc1b671bbf11dcedb4ec5729ddcf2e.bindPopup(popup_f6bd3c83fa474c0ad7843652f71dd022)
+        ;
+
+        
+    
+    
+                marker_bcfc1b671bbf11dcedb4ec5729ddcf2e.setIcon(icon_6f336590276a432e94542ad2744fa401);
+            
+    
+            var marker_bc4e58dd137764734900a01b7fbf190d = L.marker(
+                [-34.61546, -58.486842],
+                {
+}
+            ).addTo(marker_cluster_a876a9f97d776906d702d301f2a0a6b3);
+        
+    
+            var icon_9174c3ab495b30b7ab036c0dfa094e93 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_5ab889ef49f595f09f090210c92ff38f = L.popup({
+  "maxWidth": 200,
+});
+
+        
+            
+                var html_250e2fc35b0f4bc9b93342d14518ea71 = $(`<div id="html_250e2fc35b0f4bc9b93342d14518ea71" style="width: 100.0%; height: 100.0%;">         <div style='width: 200px; font: 12px Arial;' data-caso="5725">             <b>Dirección:</b> LLAVALLOL 1714<br>             <b>Comuna:</b> 11<br>             <b>OT:</b> 805579182.0<br>             <b>Observaciones:</b><br>Aplomar Poste<br>             <b>Caso:</b> 5725         </div>         </div>`)[0];
+                popup_5ab889ef49f595f09f090210c92ff38f.setContent(html_250e2fc35b0f4bc9b93342d14518ea71);
+            
+        
+
+        marker_bc4e58dd137764734900a01b7fbf190d.bindPopup(popup_5ab889ef49f595f09f090210c92ff38f)
+        ;
+
+        
+    
+    
+                marker_bc4e58dd137764734900a01b7fbf190d.setIcon(icon_9174c3ab495b30b7ab036c0dfa094e93);
+            
+    
+            marker_cluster_a876a9f97d776906d702d301f2a0a6b3.addTo(map_ee18b045a96e6ac1092bb945e1db7910);
+        
+</script>
+</html>
